@@ -31,25 +31,27 @@ def biotable(temp): #таблица учета биообразцов
 def comp_cv(df: pd.DataFrame, child, parent): #может возвращать cv, а может сразу результат пригодности(сравнить с limit)
     df[child] = df[child] / df[parent] * 100
     mean = df[child].mean()
-    sd = df[child].std()
+    sd = df[child].std() #несмещенная
     return(sd / mean * 100)
+
+def remove_control(df, column, rep):
+    df = df.loc[df[column].str.contains(rep)]
+    return(df)
 
 def krit(df : pd.DataFrame, names, parent): #собирает таблицу из всех критериев
     table = pd.DataFrame(columns=('ЛОТ', 'Точка PD', '%CV 1-3 B-cells Events', '%CV 1-4 Bmem Events', '%CV 1-5 Plasm 1 Events', '%CV naive Events'))#пока что нужно, чтобы названия колонок содержали названия популяций, потом можно будет это как-то проверять или сделать таблицу соответствий
-    df = df.loc[df['Tube Name:'].str.contains('rep')]
+    df = remove_control(df, 'Tube Name:', 'rep')
     group = df.groupby('Sample ID:')
     list_group = list(group)
+    table = table.set_index(['ЛОТ', 'Точка PD'])
     for i in list_group:
         lot_pd = i[0].split('-')
         PD = 'PD-' + lot_pd[1]
-        table.loc[int(lot_pd[0]) * 10 + int(lot_pd[1]), 'ЛОТ'] = lot_pd[0]
-        table.loc[int(lot_pd[0]) * 10 + int(lot_pd[1]), 'Точка PD'] = lot_pd[1]
         for j in names:
             cv = comp_cv(i[1], j, parent)
             for col in table.columns:
                 if j in col:
-                    table.loc[int(lot_pd[0]) * 10 + int(lot_pd[1]), col] = cv #индексы странные зато уникальные
-    table = table.set_index(['ЛОТ', 'Точка PD'])
+                    table.loc[(lot_pd[0], lot_pd[1]), col] = cv #индексы странные зато уникальные
     return(table)
 
 def compute(temp, names, parent): #запускает все функции подсчета таблиц и выводит их
@@ -62,8 +64,9 @@ def compute(temp, names, parent): #запускает все функции по
         print(table)
     krit_table = krit(temp, names, parent)
     print('Критерии пригодности', krit_table, sep = '\n')
+
 def comp_percentgb(df : pd.DataFrame, child, parent): #считает процент дочерних клеток в родительских
-    df = df.loc[df['Tube Name:'].str.contains('rep')]
+    df = remove_control(df, 'Tube Name:', 'rep')
     group = df.groupby('Sample ID:')
     list_group = list(group)
     table = pd.DataFrame(columns=('PD-1', 'PD-2', 'PD-3', 'PD-4', 'PD-5', 'PD-6', 'PD-7'))
