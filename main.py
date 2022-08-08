@@ -11,45 +11,21 @@ def read_file() -> pd.DataFrame:
     temp = data.copy()
     temp.columns = temp.iloc[0]
     temp = temp.drop(labels = 1, axis=0)#таблица без названия эксперимента, все расчеты дальше с ней
-    names = ['1-3 B-cells Events', '1-5 Plasm 1 Events', '1-4 Bmem Events', 'naive Events'] #дочерние популяции
+    names = ['1-3 B-cells Events', '1-5 Plasm 1 Events', '1-4 Bmem Events', 'naive Events'] #дочерние популяции, считывать из входных данных
     parent = '1-4 Lymph Events'
     temp[parent] = temp[parent].astype('int')
     for i in names:
         temp[i] = temp[i].astype('int')
-
     return(temp, names, parent)
 
 def biotable(temp): #таблица учета биообразцов
     table = pd.DataFrame(columns=('PD-1', 'PD-2', 'PD-3', 'PD-4', 'PD-5', 'PD-6', 'PD-7'))  # надо будет задавать количество столбцов
+    table.index.name = 'ЛОТ'
     for i in range(len(temp)):
         id = temp['Sample ID:'].iloc[i]
         lot_pd = id.split('-')
         PD = 'PD-' + lot_pd[1]
         table.loc[int(lot_pd[0]), PD] = '+'
-    return(table)
-
-def comp_percent(temp, child, parent): #возвращает таблицу с % дочерней в родительской популяции
-    table = pd.DataFrame(columns=('PD-1', 'PD-2', 'PD-3', 'PD-4', 'PD-5', 'PD-6', 'PD-7'))
-    i = 0
-    while i < len(temp):
-        row = temp.iloc[i]
-        if row['Sample ID:'] in table.index:
-            continue
-        else:
-            ID = row['Sample ID:']
-            sum = 0
-            kol = 0
-            while (row['Sample ID:'] == ID and i < len(temp)):
-                if 'rep' in row['Tube Name:']:
-                    ans = (int(row[child]) / int(row[parent])) * 100
-                    sum += ans
-                    kol += 1
-                i += 1
-                if i < len(temp):
-                    row = temp.iloc[i]
-            lot_pd = ID.split('-')
-            PD = 'PD-' + lot_pd[1]
-            table.loc[int(lot_pd[0]), PD] = sum / kol
     return(table)
 
 def comp_cv(df: pd.DataFrame, child, parent): #может возвращать cv, а может сразу результат пригодности(сравнить с limit)
@@ -73,6 +49,7 @@ def krit(df : pd.DataFrame, names, parent): #собирает таблицу и�
             for col in table.columns:
                 if j in col:
                     table.loc[int(lot_pd[0]) * 10 + int(lot_pd[1]), col] = cv #индексы странные зато уникальные
+    table = table.set_index(['ЛОТ', 'Точка PD'])
     return(table)
 
 def compute(temp, names, parent): #запускает все функции подсчета таблиц и выводит их
@@ -83,22 +60,14 @@ def compute(temp, names, parent): #запускает все функции по
         table = comp_percentgb(temp, i, parent)
         print('Mean %', i, 'in', parent)
         print(table)
-    '''b_cells = comp_percentgb(temp, '1-3 B-cells Events', '1-4 Lymph Events')
-    plasm = comp_percentgb(temp, '1-5 Plasm 1 Events', '1-4 Lymph Events')
-    Bmem = comp_percentgb(temp, '1-4 Bmem Events', '1-4 Lymph Events')
-    naive = comp_percentgb(temp, 'naive Events', '1-4 Lymph Events')'''
-    '''print('Mean % 1-3 B-cells in 1-4 Lymph', b_cells, sep = '\n') #Mean % 1-3 B-cells in 1-4 Lymph
-    print('Mean % 1-5 Plasm 1 in 1-4 Lymph', plasm, sep = '\n') #Mean % 1-5 Plasm 1 in 1-4 Lymph
-    print('Mean % 1-4 Bmem in 1-4 Lymph', Bmem, sep = '\n') #Mean % 1-4 Bmem in 1-4 Lymph
-    print('Mean % naïve in 1-4 Lymph', naive, sep = '\n')  #Mean % naïve in 1-4 Lymph'''
     krit_table = krit(temp, names, parent)
     print('Критерии пригодности', krit_table, sep = '\n')
-def comp_percentgb(df : pd.DataFrame, child, parent):
+def comp_percentgb(df : pd.DataFrame, child, parent): #считает процент дочерних клеток в родительских
     df = df.loc[df['Tube Name:'].str.contains('rep')]
-
     group = df.groupby('Sample ID:')
     list_group = list(group)
     table = pd.DataFrame(columns=('PD-1', 'PD-2', 'PD-3', 'PD-4', 'PD-5', 'PD-6', 'PD-7'))
+    table.index.name = 'ЛОТ'
     for i in list_group:
         i[1][child] = i[1][child] / i[1][parent] * 100
         lot_pd = i[0].split('-')
@@ -108,5 +77,3 @@ def comp_percentgb(df : pd.DataFrame, child, parent):
 
 data = read_file()
 compute(data[0], data[1], data[2])
-
-#compute(read_file())
