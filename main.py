@@ -20,15 +20,18 @@ def read_file() -> pd.DataFrame:
     testmin['1-5 Plasm 1 Events'] = ['1-4 Lymph Events', 'not less than', 0.025]
     testmin['1-4 Bmem Events'] = ['1-4 Lymph Events', 'not less than', 0.059]
     testmin['naive Events'] = ['1-4 Lymph Events', 'not less than', 0] #надо вбить значение
+    min_events = {}
+    min_events['1-4 Lymph Events'] = 25000
+    min_events['naive Events'] = 30000
     temp = data.copy()
     temp.columns = temp.iloc[0]
-    temp = temp.drop(labels = 1, axis=0)#таблица без названия эксперимента, все расчеты дальше с ней
+    temp = temp.drop(labels = 1, axis = 0)#таблица без названия эксперимента, все расчеты дальше с ней
     names = ['1-3 B-cells Events', '1-5 Plasm 1 Events', '1-4 Bmem Events', 'naive Events'] #дочерние популяции, считывать из входных данных
     parent = '1-4 Lymph Events'
     temp[parent] = temp[parent].astype('int')
     for i in names:
         temp[i] = temp[i].astype('int')
-    return(temp, names, parent, testcv, testmin)
+    return(temp, names, parent, testcv, testmin, min_events)
 
 def biotable(temp): #таблица учета биообразцов
     table = pd.DataFrame(columns=('PD-1', 'PD-2', 'PD-3', 'PD-4', 'PD-5', 'PD-6', 'PD-7'))  # надо будет задавать количество столбцов
@@ -40,20 +43,21 @@ def biotable(temp): #таблица учета биообразцов
         table.loc[int(lot_pd[0]), PD] = '+'
     return(table)
 
-def comp_cv(df: pd.DataFrame, child, parent): #может возвращать cv, а может сразу результат пригодности(сравнить с limit)
-    df[child] = df[child] / df[parent] * 100
-    mean = df[child].mean()
-    sd = df[child].std() #несмещенная
+def comp_cv(df, child, parent): #может возвращать cv, а может сразу результат пригодности(сравнить с limit)
+    data = df.copy()
+    data[child] = data[child] / data[parent] * 100
+    mean = data[child].mean()
+    sd = data[child].std() #несмещенная
     return(sd / mean * 100)
 
 def remove_control(df, column, rep):
     df = df.loc[df[column].str.contains(rep)]
     return(df)
-def find_col(df, name):
+def find_col(df, name, fl):
     for i in df.columns:
-        if name in i:
+        if (name in i) and (fl in i):
             return(i)
-
+    return('##')
 def check(number: int, oper: str, ref: int):
     if oper == 'no more than':
         if number > ref:
@@ -65,10 +69,24 @@ def check(number: int, oper: str, ref: int):
             return(0)
         else:
             return(1)
+    if oper == 'min events':
+        if number < ref:
+            return(0)
+        else:
+            return(1)
 
-def krit(df : pd.DataFrame, names, parent, testcv): #собирает таблицу из всех критериев
-    table = pd.DataFrame(columns=('ЛОТ', 'Точка PD', '%CV 1-3 B-cells Events', '%CV 1-4 Bmem Events', '%CV 1-5 Plasm 1 Events', '%CV naive Events'))#пока что нужно, чтобы названия колонок содержали названия популяций, потом можно будет это как-то проверять или сделать таблицу соответствий
-    res_krit = pd.DataFrame(columns=('ЛОТ', 'Точка PD', '%CV 1-3 B-cells Events', '%CV 1-4 Bmem Events', '%CV 1-5 Plasm 1 Events', '%CV naive Events'))
+def krit(df : pd.DataFrame, names, parent, testcv, min_events): #собирает таблицу из всех критериев
+    s = []
+    s.append('ЛОТ')
+    s.append('Точка PD')
+    for i in min_events:
+        c = 'min ' + i
+        s.append(c)
+    for i in names:
+        c = '%CV ' + i
+        s.append(c)
+    table = pd.DataFrame(columns = s)
+    res_krit = pd.DataFrame(columns = s)
     df = remove_control(df, 'Tube Name:', 'rep')
     group = df.groupby('Sample ID:')
     list_group = list(group)
@@ -77,14 +95,24 @@ def krit(df : pd.DataFrame, names, parent, testcv): #собирает табли
     for i in list_group:
         lot_pd = i[0].split('-')
         PD = 'PD-' + lot_pd[1]
-        for j in names:
+        for j in names:#итерироваться не по именам, а по критериям заданным
             cv = comp_cv(i[1], j, testcv[j][0])
-            col = find_col(table, j)
+            col = find_col(table, j, '%CV')
             table.loc[(lot_pd[0], lot_pd[1]), col] = cv
             res_krit.loc[(lot_pd[0], lot_pd[1]), col] = check(cv, testcv[j][1], testcv[j][2])
+            col = find_col(table, j, 'min')
+            if col != '##':
+                p = i[1][j].min()
+                table.loc[(lot_pd[0], lot_pd[1]), col] = p
+                res_krit.loc[(lot_pd[0], lot_pd[1]), col] = check(i[1][j].min(), 'min events', min_events[j])
+        col = find_col(table, parent, 'min')
+        if col != '##':
+            table.loc[(lot_pd[0], lot_pd[1]), col] = i[1][parent].min()
+            res_krit.loc[(lot_pd[0], lot_pd[1]), col] = check(i[1][parent].min(), 'min events', min_events[parent])
+    print(table['min 1-4 Lymph Events'], res_krit['min 1-4 Lymph Events'])
     return(table, res_krit)
 
-def compute(temp, names, parent, testcv, testmin): #запускает все функции подсчета таблиц и выводит их
+def compute(temp, names, parent, testcv, testmin, min_events): #запускает все функции подсчета таблиц и выводит их
     temp = temp.sort_values(by = 'Sample ID:')
     data = {}
     table = biotable(temp)
@@ -95,11 +123,11 @@ def compute(temp, names, parent, testcv, testmin): #запускает все ф
         data[key] = table[0]
         key = 'Результат проверки min % ' + i + ' in ' + parent
         data[key] = table[1]
-    table = krit(temp, names, parent, testcv)
-    data['Критерии пригодности'] = table[0]
+    table = krit(temp, names, parent, testcv, min_events)
+    '''data['Критерии пригодности'] = table[0]
     data['Результат проверки cv'] = table[1]
     for i in data:
-        print(i, data[i], sep = '\n\n')
+        print(i, data[i], sep = '\n', end = '\n\n')'''
 
 def comp_percentgb(df : pd.DataFrame, child, parent, krit: list): #считает процент дочерних клеток в родительских
     df = remove_control(df, 'Tube Name:', 'rep')
@@ -113,9 +141,9 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list): #считае�
         lot_pd = i[0].split('-')
         PD = 'PD-' + lot_pd[1]
         table.loc[int(lot_pd[0]), PD] = i[1][child].mean()
-        res_krit.loc[int(lot_pd[0]), PD] = check(i[1][child].mean(),krit[1], krit[2])
+        res_krit.loc[int(lot_pd[0]), PD] = check(i[1][child].mean(), krit[1], krit[2])
     return(table, res_krit)
 
 data = read_file()
-compute(data[0], data[1], data[2], data[3], data[4])
+compute(data[0], data[1], data[2], data[3], data[4], data[5])
 
