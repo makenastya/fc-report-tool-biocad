@@ -5,7 +5,9 @@ import pandas as pd
 #pd.set_option('display.max_columns', None)
 #pd.set_option('display.max_colwidth', None)
 
-def read_file() -> pd.DataFrame:
+def read_file(
+
+) -> pd.DataFrame:
     data_path = 'C:\\Users\\makeevaa\\2021-04-24_BCD132-4_Bmem2_406-1_408-1_411-1.csv'
     data = pd.read_csv(data_path, sep = ';')
     data = data.drop(labels = 0, axis = 0) #это можно вернуть как изначальные данные если склеить с другими таблицами, проверить на минимальное количество клеток
