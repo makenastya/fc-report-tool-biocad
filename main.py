@@ -22,7 +22,8 @@ def read_file() -> pd.DataFrame:
     testmin['naive Events'] = ['1-4 Lymph Events', 'not less than', 0] #надо вбить значение
     min_events = {}
     min_events['1-4 Lymph Events'] = 25000
-    min_events['naive Events'] = 30000
+    min_events['naive Events'] = 12000
+    points = 7
     temp = data.copy()
     temp.columns = temp.iloc[0]
     temp = temp.drop(labels = 1, axis = 0)#таблица без названия эксперимента, все расчеты дальше с ней
@@ -31,10 +32,14 @@ def read_file() -> pd.DataFrame:
     temp[parent] = temp[parent].astype('int')
     for i in names:
         temp[i] = temp[i].astype('int')
-    return(temp, names, parent, testcv, testmin, min_events)
+    return(temp, names, parent, testcv, testmin, min_events, points)
 
-def biotable(temp): #таблица учета биообразцов
-    table = pd.DataFrame(columns=('PD-1', 'PD-2', 'PD-3', 'PD-4', 'PD-5', 'PD-6', 'PD-7'))  # надо будет задавать количество столбцов
+def biotable(temp, points): #таблица учета биообразцов
+    s = []
+    for i in range(1, points + 1):
+        c = 'PD-' + str(i)
+        s.append(c)
+    table = pd.DataFrame(columns = s)
     table.index.name = 'ЛОТ'
     for i in range(len(temp)):
         id = temp['Sample ID:'].iloc[i]
@@ -57,7 +62,6 @@ def find_col(df, name, fl):
     for i in df.columns:
         if (name in i) and (fl in i):
             return(i)
-    return('##')
 def check(number: int, oper: str, ref: int):
     if oper == 'no more than':
         if number > ref:
@@ -75,14 +79,14 @@ def check(number: int, oper: str, ref: int):
         else:
             return(1)
 
-def krit(df : pd.DataFrame, names, parent, testcv, min_events): #собирает таблицу из всех критериев
+def krit(df : pd.DataFrame, testcv, min_events): #собирает таблицу из всех критериев
     s = []
     s.append('ЛОТ')
     s.append('Точка PD')
     for i in min_events:
         c = 'min ' + i
         s.append(c)
-    for i in names:
+    for i in testcv:
         c = '%CV ' + i
         s.append(c)
     table = pd.DataFrame(columns = s)
@@ -95,46 +99,45 @@ def krit(df : pd.DataFrame, names, parent, testcv, min_events): #собирае�
     for i in list_group:
         lot_pd = i[0].split('-')
         PD = 'PD-' + lot_pd[1]
-        for j in names:#итерироваться не по именам, а по критериям заданным
+        for j in testcv:
             cv = comp_cv(i[1], j, testcv[j][0])
             col = find_col(table, j, '%CV')
             table.loc[(lot_pd[0], lot_pd[1]), col] = cv
             res_krit.loc[(lot_pd[0], lot_pd[1]), col] = check(cv, testcv[j][1], testcv[j][2])
+        for j in min_events:
             col = find_col(table, j, 'min')
-            if col != '##':
-                p = i[1][j].min()
-                table.loc[(lot_pd[0], lot_pd[1]), col] = p
-                res_krit.loc[(lot_pd[0], lot_pd[1]), col] = check(i[1][j].min(), 'min events', min_events[j])
-        col = find_col(table, parent, 'min')
-        if col != '##':
-            table.loc[(lot_pd[0], lot_pd[1]), col] = i[1][parent].min()
-            res_krit.loc[(lot_pd[0], lot_pd[1]), col] = check(i[1][parent].min(), 'min events', min_events[parent])
-    print(table['min 1-4 Lymph Events'], res_krit['min 1-4 Lymph Events'])
+            table.loc[(lot_pd[0], lot_pd[1]), col] = i[1][j].min()
+            res_krit.loc[(lot_pd[0], lot_pd[1]), col] = check(i[1][j].min(), 'min events', min_events[j])
     return(table, res_krit)
 
-def compute(temp, names, parent, testcv, testmin, min_events): #запускает все функции подсчета таблиц и выводит их
+def compute(temp, names, parent, testcv, testmin, min_events, points): #запускает все функции подсчета таблиц и выводит их
     temp = temp.sort_values(by = 'Sample ID:')
     data = {}
-    table = biotable(temp)
+    table = biotable(temp, points)
     data['Учет биообразцов'] = table
-    for i in names:  #если не нужно хранить 4 отдельных датафрейма, или же можно записать их в общую структуру
-        table = comp_percentgb(temp, i, parent, testmin[i])
+    for i in names:
+        table = comp_percentgb(temp, i, parent, testmin[i], points)#всегда ли надо искать процент всех дочерних в одной?
         key = 'Mean % ' + i + ' in ' + parent
-        data[key] = table[0]
-        key = 'Результат проверки min % ' + i + ' in ' + parent
-        data[key] = table[1]
-    table = krit(temp, names, parent, testcv, min_events)
-    '''data['Критерии пригодности'] = table[0]
-    data['Результат проверки cv'] = table[1]
+        data[key] = table
+    table = krit(temp, testcv, min_events)
+    data['Критерии пригодности'] = table
     for i in data:
-        print(i, data[i], sep = '\n', end = '\n\n')'''
+        if (type(data[i]) == pd.DataFrame):
+            print(i, data[i], sep = '\n', end = '\n\n')
+        else:
+            print(i, data[i][0], sep = '\n', end = '\n\n') #результаты в data[i][1]
 
-def comp_percentgb(df : pd.DataFrame, child, parent, krit: list): #считает процент дочерних клеток в родительских
+
+def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #считает процент дочерних клеток в родительских
     df = remove_control(df, 'Tube Name:', 'rep')
     group = df.groupby('Sample ID:')
     list_group = list(group)
-    table = pd.DataFrame(columns=('PD-1', 'PD-2', 'PD-3', 'PD-4', 'PD-5', 'PD-6', 'PD-7'))
-    res_krit = pd.DataFrame(columns=('PD-1', 'PD-2', 'PD-3', 'PD-4', 'PD-5', 'PD-6', 'PD-7'))
+    s = []
+    for i in range(1, points + 1):
+        c = 'PD-' + str(i)
+        s.append(c)
+    table = pd.DataFrame(columns = s)
+    res_krit = pd.DataFrame(columns = s)
     table.index.name = 'ЛОТ'
     for i in list_group:
         i[1][child] = i[1][child] / i[1][parent] * 100
@@ -145,5 +148,5 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list): #считае�
     return(table, res_krit)
 
 data = read_file()
-compute(data[0], data[1], data[2], data[3], data[4], data[5])
+compute(data[0], data[1], data[2], data[3], data[4], data[5], data[6])
 
