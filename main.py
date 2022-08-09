@@ -24,6 +24,11 @@ def read_file() -> pd.DataFrame:
     min_events['1-4 Lymph Events'] = 25000
     min_events['naive Events'] = 12000
     points = 7
+    test = {}
+    test['naive Events'] = '1-4 Lymph Events'
+    test['1-3 B-cells Events'] = '1-4 Lymph Events'
+    test['1-5 Plasm 1 Events'] = '1-4 Lymph Events'
+    test['1-4 Bmem Events'] = '1-4 Lymph Events'
     temp = data.copy()
     temp.columns = temp.iloc[0]
     temp = temp.drop(labels = 1, axis = 0)#таблица без названия эксперимента, все расчеты дальше с ней
@@ -32,7 +37,7 @@ def read_file() -> pd.DataFrame:
     temp[parent] = temp[parent].astype('int')
     for i in names:
         temp[i] = temp[i].astype('int')
-    return(temp, names, parent, testcv, testmin, min_events, points)
+    return(temp, testcv, testmin, min_events, points, test)
 
 def biotable(temp, points): #таблица учета биообразцов
     s = []
@@ -110,23 +115,18 @@ def krit(df : pd.DataFrame, testcv, min_events): #собирает таблиц�
             res_krit.loc[(lot_pd[0], lot_pd[1]), col] = check(i[1][j].min(), 'min events', min_events[j])
     return(table, res_krit)
 
-def compute(temp, names, parent, testcv, testmin, min_events, points): #запускает все функции подсчета таблиц и выводит их
+def compute(temp, testcv, testmin, min_events, points, test): #запускает все функции подсчета таблиц и выводит их
     temp = temp.sort_values(by = 'Sample ID:')
-    data = {}
+    biodata = {}
+    krit_data = {}
     table = biotable(temp, points)
-    data['Учет биообразцов'] = table
-    for i in names:
-        table = comp_percentgb(temp, i, parent, testmin[i], points)#всегда ли надо искать процент всех дочерних в одной?
-        key = 'Mean % ' + i + ' in ' + parent
-        data[key] = table
+    biodata['Учет биообразцов'] = table
+    for i in test:
+        table = comp_percentgb(temp, i, test[i], testmin[i], points)
+        key = f'Mean % {i} in {test[i]}'
+        krit_data[key] = table
     table = krit(temp, testcv, min_events)
-    data['Критерии пригодности'] = table
-    for i in data:
-        if (type(data[i]) == pd.DataFrame):
-            print(i, data[i], sep = '\n', end = '\n\n')
-        else:
-            print(i, data[i][0], sep = '\n', end = '\n\n') #результаты в data[i][1]
-
+    krit_data['Критерии пригодности'] = table
 
 def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #считает процент дочерних клеток в родительских
     df = remove_control(df, 'Tube Name:', 'rep')
@@ -148,5 +148,5 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #сч�
     return(table, res_krit)
 
 data = read_file()
-compute(data[0], data[1], data[2], data[3], data[4], data[5], data[6])
+compute(data[0], data[1], data[2], data[3], data[4], data[5])
 
