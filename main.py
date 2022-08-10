@@ -1,6 +1,11 @@
 
 import numpy as np
 import pandas as pd
+import openpyxl
+import jinja2
+from openpyxl import Workbook
+from pandas.io.formats.style import Styler
+import xlsxwriter
 #pd.set_option('display.max_rows', None)
 #pd.set_option('display.max_columns', None)
 #pd.set_option('display.max_colwidth', None)
@@ -19,7 +24,7 @@ def read_file(
     testcv['naive Events'] = ['1-4 Lymph Events', 'no more than', 20]
     testmin = {}  # пока вбила руками, будет считываться из входного файла
     testmin['1-3 B-cells Events'] = ['1-4 Lymph Events', 'not less than', 0.124]
-    testmin['1-5 Plasm 1 Events'] = ['1-4 Lymph Events', 'not less than', 0.025]
+    testmin['1-5 Plasm 1 Events'] = ['1-4 Lymph Events', 'not less than', 0.5]
     testmin['1-4 Bmem Events'] = ['1-4 Lymph Events', 'not less than', 0.059]
     testmin['naive Events'] = ['1-4 Lymph Events', 'not less than', 0] #надо вбить значение
     min_events = {}
@@ -129,6 +134,16 @@ def compute(temp, testcv, testmin, min_events, points, test): #запускае�
         krit_data[key] = table
     table = krit(temp, testcv, min_events)
     krit_data['Критерии пригодности'] = table
+    for i in biodata:
+        biodata[i].to_excel(f'{i}.xlsx')
+    for i in krit_data:
+        style_df = (
+            krit_data[i][1] == 0
+        ).replace({
+            True: 'background-color:red',
+            False: ''
+        })
+        krit_data[i][0].style.apply(lambda _: style_df, axis=None).to_excel(f'{i}.xlsx', engine='openpyxl')
 
 def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #считает процент дочерних клеток в родительских
     df = remove_control(df, 'Tube Name:', 'rep')
@@ -146,7 +161,7 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #сч�
         lot_pd = i[0].split('-')
         PD = 'PD-' + lot_pd[1]
         table.loc[int(lot_pd[0]), PD] = i[1][child].mean()
-        res_krit.loc[int(lot_pd[0]), PD] = check(i[1][child].mean(), krit[1], krit[2])
+        res_krit.loc[int(lot_pd[0]), PD]  = check(i[1][child].mean(), krit[1], krit[2])
     return(table, res_krit)
 
 data = read_file()
