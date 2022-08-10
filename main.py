@@ -1,11 +1,6 @@
 
 import numpy as np
 import pandas as pd
-import openpyxl
-import jinja2
-from openpyxl import Workbook
-from pandas.io.formats.style import Styler
-import xlsxwriter
 #pd.set_option('display.max_rows', None)
 #pd.set_option('display.max_columns', None)
 #pd.set_option('display.max_colwidth', None)
@@ -140,10 +135,10 @@ def compute(temp, testcv, testmin, min_events, points, test): #запускае�
         style_df = (
             krit_data[i][1] == 0
         ).replace({
-            True: 'background-color:red',
+            True: 'color:red',
             False: ''
         })
-        krit_data[i][0].style.apply(lambda _: style_df, axis=None).to_excel(f'{i}.xlsx', engine='openpyxl')
+        krit_data[i][0].style.apply(lambda _: style_df, axis = None).to_excel(f'{i}.xlsx', engine='openpyxl')
 
 def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #считает процент дочерних клеток в родительских
     df = remove_control(df, 'Tube Name:', 'rep')
