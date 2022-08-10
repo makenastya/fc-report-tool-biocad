@@ -159,6 +159,8 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #сч�
         res_krit.loc[int(lot_pd[0]), PD]  = check(i[1][child].mean(), krit[1], krit[2])
     return(table, res_krit)
 
-data = read_file()
-compute(data[0], data[1], data[2], data[3], data[4], data[5])
+
+if __name__ == '__main__':
+    data = read_file()
+    compute(data[0], data[1], data[2], data[3], data[4], data[5])
 
