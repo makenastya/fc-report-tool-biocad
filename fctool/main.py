@@ -1,6 +1,8 @@
 
 import numpy as np
 import pandas as pd
+import jinja2
+from pathlib import Path
 #pd.set_option('display.max_rows', None)
 #pd.set_option('display.max_columns', None)
 #pd.set_option('display.max_colwidth', None)
@@ -8,7 +10,8 @@ import pandas as pd
 def read_file(
 
 ) -> pd.DataFrame:
-    data_path = 'C:\\Users\\makeevaa\\2021-04-24_BCD132-4_Bmem2_406-1_408-1_411-1.csv'
+    cur_file = Path(__file__)
+    data_path = cur_file.parent.parent/'data'/'2021-04-24_BCD132-4_Bmem2_406-1_408-1_411-1.csv'
     data = pd.read_csv(data_path, sep = ';')
     data = data.drop(labels = 0, axis = 0) #это можно вернуть как изначальные данные если склеить с другими таблицами, проверить на минимальное количество клеток
     #print('Первичные данные', data, sep = '\n')
