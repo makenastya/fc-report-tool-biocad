@@ -35,6 +35,7 @@ def read_file(
     test['1-5 Plasm 1 Events'] = '1-4 Lymph Events'
     test['1-4 Bmem Events'] = '1-4 Lymph Events'
     temp = data.copy()
+    temp = remove_control(temp, 'Tube Name:', 'rep')
     temp.columns = temp.iloc[0]
     temp = temp.drop(labels = 1, axis = 0)#таблица без названия эксперимента, все расчеты дальше с ней
     names = ['1-3 B-cells Events', '1-5 Plasm 1 Events', '1-4 Bmem Events', 'naive Events'] #дочерние популяции, считывать из входных данных
@@ -44,7 +45,7 @@ def read_file(
         temp[i] = temp[i].astype('int')
     return(temp, testcv, testmin, min_events, points, test)
 
-def biotable(temp, points): #таблица учета биообразцов
+def biotable(temp, points): #таблица учета биообразцов, принимает исходную таблицу(без контроля и названия эксперимента) и кол-во точек забора
     s = []
     for i in range(1, points + 1):
         c = 'PD-' + str(i)
@@ -58,21 +59,21 @@ def biotable(temp, points): #таблица учета биообразцов
         table.loc[int(lot_pd[0]), PD] = '+'
     return(table)
 
-def comp_cv(df, child, parent): #может возвращать cv, а может сразу результат пригодности(сравнить с limit)
+def comp_cv(df, child, parent): #принимает датафрейм от одного образца, названия столбцов для расчета cv, возвращает cv
     data = df.copy()
     data[child] = data[child] / data[parent] * 100
     mean = data[child].mean()
     sd = data[child].std() #несмещенная
     return(sd / mean * 100)
 
-def remove_control(df, column, rep):
+def remove_control(df, column, rep):#убирает из таблицы строки с контролем
     df = df.loc[df[column].str.contains(rep)]
     return(df)
-def find_col(df, name, fl):
+def find_col(df, name, fl):#возвращает столбец в таблице критериев пригодности, принимает таблицу крит.приг., название популяции и критерия
     for i in df.columns:
         if (name in i) and (fl in i):
             return(i)
-def check(number: int, oper: str, ref: int):
+def check(number: int, oper: str, ref: int):#принимает значение(cv либо events), оператор, возвращает результат сравнения
     if oper == 'no more than':
         if number > ref:
             return(0)
@@ -89,7 +90,7 @@ def check(number: int, oper: str, ref: int):
         else:
             return(1)
 
-def krit(df : pd.DataFrame, testcv, min_events): #собирает таблицу из всех критериев
+def krit(df : pd.DataFrame, testcv, min_events): #собирает таблицу из всех критериев пригодности(cv и min events), принимает исходную таблицу и словари с критериями
     s = []
     s.append('ЛОТ')
     s.append('Точка PD')
@@ -101,7 +102,6 @@ def krit(df : pd.DataFrame, testcv, min_events): #собирает таблиц�
         s.append(c)
     table = pd.DataFrame(columns = s)
     res_krit = pd.DataFrame(columns = s)
-    df = remove_control(df, 'Tube Name:', 'rep')
     group = df.groupby('Sample ID:')
     list_group = list(group)
     table = table.set_index(['ЛОТ', 'Точка PD'])
@@ -120,7 +120,7 @@ def krit(df : pd.DataFrame, testcv, min_events): #собирает таблиц�
             res_krit.loc[(lot_pd[0], lot_pd[1]), col] = check(i[1][j].min(), 'min events', min_events[j])
     return(table, res_krit)
 
-def compute(temp, testcv, testmin, min_events, points, test): #запускает все функции подсчета таблиц и выводит их
+def compute(temp, testcv, testmin, min_events, points, test): #запускает все функции подсчета таблиц и генерирует excel-файлы
     temp = temp.sort_values(by = 'Sample ID:')
     biodata = {}
     krit_data = {}
@@ -141,9 +141,10 @@ def compute(temp, testcv, testmin, min_events, points, test): #запускае�
             True: 'color:red',
             False: ''
         })
-        krit_data[i][0].style.apply(lambda _: style_df, axis = None).to_excel(f'{i}.xlsx', engine='openpyxl')
+        print(i, krit_data[i][0])
+        #krit_data[i][0].style.apply(lambda _: style_df, axis = None).to_excel(f'{i}.xlsx', engine='openpyxl')
 
-def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #считает процент дочерних клеток в родительских
+def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #считает процент дочерних клеток в родительских, принимает критерии lloq и применяет их
     df = remove_control(df, 'Tube Name:', 'rep')
     group = df.groupby('Sample ID:')
     list_group = list(group)
