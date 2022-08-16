@@ -11,7 +11,7 @@ def read_file(
 
 ) -> pd.DataFrame:
     cur_file = Path(__file__)
-    data_path = cur_file.parent.parent/'data'/'2021-04-24_BCD132-4_Bmem2_406-1_408-1_411-1.csv'
+    data_path = cur_file.parent.parent/'data'/'data.csv'
     data = pd.read_csv(data_path, sep = ';')
     data = data.drop(labels = 0, axis = 0) #это можно вернуть как изначальные данные если склеить с другими таблицами, проверить на минимальное количество клеток
     #print('Первичные данные', data, sep = '\n')
@@ -35,9 +35,10 @@ def read_file(
     test['1-5 Plasm 1 Events'] = '1-4 Lymph Events'
     test['1-4 Bmem Events'] = '1-4 Lymph Events'
     temp = data.copy()
-    temp = remove_control(temp, 'Tube Name:', 'rep')
     temp.columns = temp.iloc[0]
-    temp = temp.drop(labels = 1, axis = 0)#таблица без названия эксперимента, все расчеты дальше с ней
+    temp = temp.drop(labels = 1, axis=0)# таблица без названия эксперимента, все расчеты дальше с ней
+
+    temp = remove_control(temp, 'Tube Name:', 'rep')
     names = ['1-3 B-cells Events', '1-5 Plasm 1 Events', '1-4 Bmem Events', 'naive Events'] #дочерние популяции, считывать из входных данных
     parent = '1-4 Lymph Events'
     temp[parent] = temp[parent].astype('int')
@@ -166,5 +167,5 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #сч�
 
 if __name__ == '__main__':
     data = read_file()
-    compute(data[0], data[1], data[2], data[3], data[4], data[5])
+    #compute(data[0], data[1], data[2], data[3], data[4], data[5])
 
