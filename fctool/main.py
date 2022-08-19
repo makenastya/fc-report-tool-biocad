@@ -3,47 +3,131 @@ import numpy as np
 import pandas as pd
 import jinja2
 from pathlib import Path
-#pd.set_option('display.max_rows', None)
-#pd.set_option('display.max_columns', None)
-#pd.set_option('display.max_colwidth', None)
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_colwidth', None)
 
-def read_file(
 
-) -> pd.DataFrame:
+
+def read_file(cytometer) -> pd.DataFrame:
     cur_file = Path(__file__)
     data_path = cur_file.parent.parent/'data'/'data.csv'
     data = pd.read_csv(data_path, sep = ';')
-    data = data.drop(labels = 0, axis = 0) #это можно вернуть как изначальные данные если склеить с другими таблицами, проверить на минимальное количество клеток
-    #print('Первичные данные', data, sep = '\n')
-    testcv = {}  # пока вбила руками, будет считываться из входного файла
-    testcv['1-3 B-cells Events'] = ['1-4 Lymph Events', 'no more than', 20]
-    testcv['1-5 Plasm 1 Events'] = ['1-4 Lymph Events', 'no more than', 35]
-    testcv['1-4 Bmem Events'] = ['1-4 Lymph Events', 'no more than', 20]
-    testcv['naive Events'] = ['1-4 Lymph Events', 'no more than', 20]
-    testmin = {}  # пока вбила руками, будет считываться из входного файла
-    testmin['1-3 B-cells Events'] = ['1-4 Lymph Events', 'not less than', 0.124]
-    testmin['1-5 Plasm 1 Events'] = ['1-4 Lymph Events', 'not less than', 0.5]
-    testmin['1-4 Bmem Events'] = ['1-4 Lymph Events', 'not less than', 0.059]
-    testmin['naive Events'] = ['1-4 Lymph Events', 'not less than', 0] #надо вбить значение
-    min_events = {}
-    min_events['1-4 Lymph Events'] = 25000
-    min_events['naive Events'] = 12000
-    points = 7
-    test = {}
-    test['naive Events'] = '1-4 Lymph Events'
-    test['1-3 B-cells Events'] = '1-4 Lymph Events'
-    test['1-5 Plasm 1 Events'] = '1-4 Lymph Events'
-    test['1-4 Bmem Events'] = '1-4 Lymph Events'
     temp = data.copy()
-    temp.columns = temp.iloc[0]
-    temp = temp.drop(labels = 1, axis=0)# таблица без названия эксперимента, все расчеты дальше с ней
+    if cytometer == 'CytoFLEX':
+        populations = {}  # задать названия нужных для анализа столбцов и желаемое название в отчете
+        populations['1-4 Lymph'] = 'Lymph'
+        populations['1-3 B-cells'] = 'B-cells'
+        populations['1-5 Plasm 1'] = 'Plasm'
+        populations['1-4 Bmem'] = 'B-mem'
+        populations['naive'] = 'Naive'
+        columns = {}  # словарь соответсвий для замены названий колонок
+        columns['Tube Name:'] = 'Tube Name:'  # это я уже сама внутри программы делаю для удобства
+        columns['Sample ID:'] = 'Sample ID:'
+        names = []
+        for i in populations:
+            names.append(populations[i])
+            key = i + ' Events'
+            columns[key] = populations[i]
+        temp.columns = temp.iloc[1]
+        temp = temp.drop(labels=0, axis=0)  # таблица без названия эксперимента, все расчеты дальше с ней
+        temp = temp.drop(labels=1, axis=0)
+        temp = temp.loc[:, list(columns.keys())]
+        temp.rename(columns=columns, inplace=True)
+        temp = remove_control(temp, 'Tube Name:', 'rep')
+        data = data.drop(labels=0,
+                         axis=0)  # это можно вернуть как изначальные данные если склеить с другими таблицами, проверить на минимальное количество клеток
+        for i in names:
+            temp[i] = temp[i].astype('int')
+        testcv = {}  # CV
+        testcv['B-cells'] = ['Lymph', 'no more than', 20]
+        testcv['Plasm'] = ['Lymph', 'no more than', 35]
+        testcv['B-mem'] = ['Lymph', 'no more than', 20]
+        testcv['Naive'] = ['Lymph', 'no more than', 20]
+        test = {}
+        test['Naive'] = 'Lymph'
+        test['B-cells'] = 'Lymph'
+        test['Plasm'] = 'Lymph'
+        test['B-mem'] = 'Lymph'
+        testmin = {}  # пока вбила руками, будет считываться из входного файла
+        testmin['B-cells'] = ['Lymph', 'not less than', 0.3]  # 0.124
+        testmin['Plasm'] = ['Lymph', 'not less than', 0.5]
+        testmin['B-mem'] = ['Lymph', 'not less than', 0.059]
+        testmin['Naive'] = ['Lymph', 'not less than', 0]
+        for i in test:
+            if i not in testmin:
+                testmin[i] = [test[i], 'not less than', 0]
+        min_events = {}
+        min_events['Lymph'] = 25000
+        min_events['Naive'] = 12000 #в metadata нет
+        points = 7
+    if cytometer == 'FACS Canto II':
+        populations = {}# задать названия нужных для анализа столбцов и желаемое название в отчете
+        populations['singlets'] = 'Lymph'
+        populations['T'] = 'T-lymph'
+        populations['CTL'] = 'CTL'
+        populations['Ki67+CTL'] = 'Ki67+CTL'
+        populations['CD69+CTL'] = 'CD69+CTL'
+        populations['Th'] = 'Th'
+        populations['Ki67+Th'] = 'Ki67+Th'
+        populations['CD69+Th'] = 'CD69+Th'
+        populations['NK'] = 'NK'
+        populations['Ki67+NK'] = 'Ki67+NK'
+        populations['CD69+NK'] = 'CD69+NK'
+        populations['CD56hiNK'] = 'CD56hiNK'
+        populations['Ki67+CD56hiNK'] = 'Ki67+CD56hiNK'
+        populations['CD69+CD56hiNK'] = 'CD69+CD56hiNK'
+        columns = {}#словарь соответсвий для замены названий колонок
+        columns['Tube Name'] = 'Tube Name:'  # это я уже сама внутри программы делаю для удобства
+        columns['Specimen Name'] = 'Sample ID:'
+        names = []
+        for i in populations:
+            names.append(populations[i])
+            key = i + ' #Events'
+            columns[key] = populations[i]
+        temp = temp.loc[:, list(columns.keys())]
+        temp.rename(columns = columns, inplace = True)
+        temp = remove_control(temp, 'Tube Name:', 'rep')
+        for i in names:
+            temp[i] = temp[i].astype('int')
+        testcv = {}  # cv
+        testcv['T-lymph'] = ['Lymph', 'no more than', 20]
+        testcv['Th'] = ['T-lymph', 'no more than', 20]
+        testcv['CTL'] = ['T-lymph', 'no more than', 20]
+        testcv['NK'] = ['Lymph', 'no more than', 20]
+        testcv['CD56hiNK'] = ['NK', 'no more than', 35]
+        testcv['Ki67+Th'] = ['Th', 'no more than', 35]
+        testcv['Ki67+Th'] = ['CTL', 'no more than', 35]
+        testcv['Ki67+NK'] = ['NK', 'no more than', 35]
+        testcv['Ki67+CD56hiNK'] = ['CD56hiNK', 'no more than', 35]
+        testcv['CD69+Th'] = ['Th', 'no more than', 35]
+        testcv['CD69+Th'] = ['CTL', 'no more than', 35]
+        testcv['CD69+NK'] = ['NK', 'no more than', 35]
+        testcv['CD69+CD56hiNK'] = ['CD56hiNK', 'no more than', 10]
+        test = {}  # для чего относительно чего считать процент
+        test['T-lymph'] = 'Lymph'
+        test['Th'] = 'T-lymph'
+        test['CTL'] = 'T-lymph'
+        test['NK'] = 'Lymph'
+        test['CD56hiNK'] = 'NK'
+        test['Ki67+Th'] = 'Th'
+        test['Ki67+Th'] = 'CTL'
+        test['Ki67+NK'] = 'NK'
+        test['Ki67+CD56hiNK'] = 'CD56hiNK'
+        test['CD69+Th'] = 'Th'
+        test['CD69+Th'] = 'CTL'
+        test['CD69+NK'] = 'NK'
+        test['CD69+CD56hiNK'] = 'CD56hiNK'
+        testmin = {}  # LLOQ, min % child in parent, ставить 0 если нет значения рассчитанного
+        for i in test:
+            if i not in testmin:
+                testmin[i] = [test[i], 'not less than', 0]
+        min_events = {}
+        min_events['NK'] = 1000
+        points = 11
+    #print('Первичные данные', data, sep = '\n')
 
-    temp = remove_control(temp, 'Tube Name:', 'rep')
-    names = ['1-3 B-cells Events', '1-5 Plasm 1 Events', '1-4 Bmem Events', 'naive Events'] #дочерние популяции, считывать из входных данных
-    parent = '1-4 Lymph Events'
-    temp[parent] = temp[parent].astype('int')
-    for i in names:
-        temp[i] = temp[i].astype('int')
+
     return(temp, testcv, testmin, min_events, points, test)
 
 def biotable(temp, points): #таблица учета биообразцов, принимает исходную таблицу(без контроля и названия эксперимента) и кол-во точек забора
@@ -99,7 +183,7 @@ def krit(df : pd.DataFrame, testcv, min_events): #собирает таблиц�
         c = 'min ' + i
         s.append(c)
     for i in testcv:
-        c = '%CV ' + i
+        c = '%CV ' + i + ' in ' + testcv[i][0]
         s.append(c)
     table = pd.DataFrame(columns = s)
     res_krit = pd.DataFrame(columns = s)
@@ -142,8 +226,8 @@ def compute(temp, testcv, testmin, min_events, points, test): #запускае�
             True: 'color:red',
             False: ''
         })
-        print(i, krit_data[i][0])
-        #krit_data[i][0].style.apply(lambda _: style_df, axis = None).to_excel(f'{i}.xlsx', engine='openpyxl')
+        #print(i, krit_data[i][0])
+        krit_data[i][0].style.apply(lambda _: style_df, axis = None).to_excel(f'{i}.xlsx', engine='openpyxl')
 
 def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #считает процент дочерних клеток в родительских, принимает критерии lloq и применяет их
     df = remove_control(df, 'Tube Name:', 'rep')
@@ -166,6 +250,6 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #сч�
 
 
 if __name__ == '__main__':
-    data = read_file()
-    #compute(data[0], data[1], data[2], data[3], data[4], data[5])
+    data = read_file('CytoFLEX')
+    compute(data[0], data[1], data[2], data[3], data[4], data[5])
 
