@@ -3,17 +3,53 @@ import numpy as np
 import pandas as pd
 import jinja2
 from pathlib import Path
+import os, sys
+
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_colwidth', None)
 
+def table_FACS(data: pd.DataFrame, populations):
+    temp = data.copy()
+    columns = {}  # словарь соответсвий для замены названий колонок
+    columns['Tube Name'] = 'Tube Name:'  # это я уже сама внутри программы делаю для удобства
+    columns['Specimen Name'] = 'Sample ID:'
+    names = []
+    for i in populations:
+        names.append(populations[i])
+        key = i + ' #Events'
+        columns[key] = populations[i]
 
+    temp = temp.loc[:, list(columns.keys())]
+    temp.rename(columns=columns, inplace=True)
+    temp = remove_control(temp, 'Tube Name:', 'rep')
+    for i in names:
+        temp[i] = temp[i].astype('int')
+    return(temp)
+
+def table_FLEX(data, populations):
+    temp = data.copy()
+    columns = {}  # словарь соответсвий для замены названий колонок
+    columns['Tube Name:'] = 'Tube Name:'  # это я уже сама внутри программы делаю для удобства
+    columns['Sample ID:'] = 'Sample ID:'
+    names = []
+    for i in populations:
+        names.append(populations[i])
+        key = i + ' Events'
+        columns[key] = populations[i]
+    temp.columns = temp.iloc[1]
+    temp = temp.drop(labels=0, axis=0)  # таблица без названия эксперимента, все расчеты дальше с ней
+    temp = temp.drop(labels=1, axis=0)
+    temp = temp.loc[:, list(columns.keys())]
+    temp.rename(columns=columns, inplace=True)
+    temp = remove_control(temp, 'Tube Name:', 'rep')
+    for i in names:
+        temp[i] = temp[i].astype('int')
+    return(temp)
 
 def read_file(cytometer) -> pd.DataFrame:
-    cur_file = Path(__file__)
-    data_path = cur_file.parent.parent/'data'/'data.csv'
-    data = pd.read_csv(data_path, sep = ';')
-    temp = data.copy()
+
+
     if cytometer == 'CytoFLEX':
         populations = {}  # задать названия нужных для анализа столбцов и желаемое название в отчете
         populations['1-4 Lymph'] = 'Lymph'
@@ -21,24 +57,6 @@ def read_file(cytometer) -> pd.DataFrame:
         populations['1-5 Plasm 1'] = 'Plasm'
         populations['1-4 Bmem'] = 'B-mem'
         populations['naive'] = 'Naive'
-        columns = {}  # словарь соответсвий для замены названий колонок
-        columns['Tube Name:'] = 'Tube Name:'  # это я уже сама внутри программы делаю для удобства
-        columns['Sample ID:'] = 'Sample ID:'
-        names = []
-        for i in populations:
-            names.append(populations[i])
-            key = i + ' Events'
-            columns[key] = populations[i]
-        temp.columns = temp.iloc[1]
-        temp = temp.drop(labels=0, axis=0)  # таблица без названия эксперимента, все расчеты дальше с ней
-        temp = temp.drop(labels=1, axis=0)
-        temp = temp.loc[:, list(columns.keys())]
-        temp.rename(columns=columns, inplace=True)
-        temp = remove_control(temp, 'Tube Name:', 'rep')
-        data = data.drop(labels=0,
-                         axis=0)  # это можно вернуть как изначальные данные если склеить с другими таблицами, проверить на минимальное количество клеток
-        for i in names:
-            temp[i] = temp[i].astype('int')
         testcv = {}  # CV
         testcv['B-cells'] = ['Lymph', 'no more than', 20]
         testcv['Plasm'] = ['Lymph', 'no more than', 35]
@@ -77,19 +95,6 @@ def read_file(cytometer) -> pd.DataFrame:
         populations['CD56hiNK'] = 'CD56hiNK'
         populations['Ki67+CD56hiNK'] = 'Ki67+CD56hiNK'
         populations['CD69+CD56hiNK'] = 'CD69+CD56hiNK'
-        columns = {}#словарь соответсвий для замены названий колонок
-        columns['Tube Name'] = 'Tube Name:'  # это я уже сама внутри программы делаю для удобства
-        columns['Specimen Name'] = 'Sample ID:'
-        names = []
-        for i in populations:
-            names.append(populations[i])
-            key = i + ' #Events'
-            columns[key] = populations[i]
-        temp = temp.loc[:, list(columns.keys())]
-        temp.rename(columns = columns, inplace = True)
-        temp = remove_control(temp, 'Tube Name:', 'rep')
-        for i in names:
-            temp[i] = temp[i].astype('int')
         testcv = {}  # cv
         testcv['T-lymph'] = ['Lymph', 'no more than', 20]
         testcv['Th'] = ['T-lymph', 'no more than', 20]
@@ -103,7 +108,7 @@ def read_file(cytometer) -> pd.DataFrame:
         testcv['CD69+Th'] = ['Th', 'no more than', 35]
         testcv['CD69+Th'] = ['CTL', 'no more than', 35]
         testcv['CD69+NK'] = ['NK', 'no more than', 35]
-        testcv['CD69+CD56hiNK'] = ['CD56hiNK', 'no more than', 10]
+        testcv['CD69+CD56hiNK'] = ['CD56hiNK', 'no more than', 10] #другое значение
         test = {}  # для чего относительно чего считать процент
         test['T-lymph'] = 'Lymph'
         test['Th'] = 'T-lymph'
@@ -126,9 +131,27 @@ def read_file(cytometer) -> pd.DataFrame:
         min_events['NK'] = 1000
         points = 11
     #print('Первичные данные', data, sep = '\n')
+    cur_file = Path(__file__)
+    data_path = cur_file.parent.parent / 'data'
+    dirs = os.listdir(data_path)
+    k = 0
+    for file in dirs:
+        if file.endswith(".csv"):
+            k += 1
+            p = Path(data_path, file)
+            table = pd.read_csv(p, sep=',')
+            if cytometer == 'FACS Canto II':
+                temp = table_FACS(table, populations)
+            else:
+                temp = table_FLEX(table, populations)
+            if k == 1:
+                res = temp
+            else:
+                res = pd.concat([res, temp])
 
+    print(k)
 
-    return(temp, testcv, testmin, min_events, points, test)
+    return(res, testcv, testmin, min_events, points, test)
 
 def biotable(temp, points): #таблица учета биообразцов, принимает исходную таблицу(без контроля и названия эксперимента) и кол-во точек забора
     s = []
@@ -250,6 +273,5 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #сч�
 
 
 if __name__ == '__main__':
-    data = read_file('CytoFLEX')
+    data = read_file('FACS Canto II')
     compute(data[0], data[1], data[2], data[3], data[4], data[5])
-
