@@ -19,7 +19,10 @@ def table_FACS(data: pd.DataFrame, populations):
         names.append(populations[i])
         key = i + ' #Events'
         columns[key] = populations[i]
+        if key not in temp.columns:
+            print("Неверное название колонки")
 
+            return (pd.DataFrame())
     temp = temp.loc[:, list(columns.keys())]
     temp.rename(columns=columns, inplace=True)
     temp = remove_control(temp, 'Tube Name:', 'rep')
@@ -37,6 +40,9 @@ def table_FLEX(data, populations):
         names.append(populations[i])
         key = i + ' Events'
         columns[key] = populations[i]
+        if key not in temp.columns:
+            print("Неверное название колонки")
+            return(pd.DataFrame())
     temp.columns = temp.iloc[1]
     temp = temp.drop(labels=0, axis=0)  # таблица без названия эксперимента, все расчеты дальше с ней
     temp = temp.drop(labels=1, axis=0)
@@ -142,12 +148,25 @@ def read_file(cytometer) -> pd.DataFrame:
             table = pd.read_csv(p, sep=',')
             if cytometer == 'FACS Canto II':
                 temp = table_FACS(table, populations)
+                if temp.empty:
+                    print(file)
+                    exit(0)
             else:
                 temp = table_FLEX(table, populations)
+                if temp.empty:
+                    print(file)
+                    exit(0)
             if k == 1:
                 res = temp
             else:
+                if not pd.merge(res, temp, how = 'inner').empty:
+                    print("Два одинаковых файла:", file)
+                    exit(0)
+                if not pd.merge(res, temp, on =['Sample ID:', 'Tube Name:'], how = 'inner').empty:
+                    print('Две одинаковые реплики:', file)
+                    exit(0)
                 res = pd.concat([res, temp])
+
 
     print(k)
 
