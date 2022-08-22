@@ -114,7 +114,7 @@ def read_file(cytometer) -> pd.DataFrame:
         testcv['CD69+Th'] = ['Th', 'no more than', 35]
         testcv['CD69+Th'] = ['CTL', 'no more than', 35]
         testcv['CD69+NK'] = ['NK', 'no more than', 35]
-        testcv['CD69+CD56hiNK'] = ['CD56hiNK', 'no more than', 10] #другое значение
+        testcv['CD69+CD56hiNK'] = ['CD56hiNK', 'no more than', 35] #другое значение
         test = {}  # для чего относительно чего считать процент
         test['T-lymph'] = 'Lymph'
         test['Th'] = 'T-lymph'
@@ -141,11 +141,12 @@ def read_file(cytometer) -> pd.DataFrame:
     data_path = cur_file.parent.parent / 'data'
     dirs = os.listdir(data_path)
     k = 0
+    file_lot = {}
     for file in dirs:
         if file.endswith(".csv"):
             k += 1
             p = Path(data_path, file)
-            table = pd.read_csv(p, sep=',')
+            table = pd.read_csv(p, sep=';')
             if cytometer == 'FACS Canto II':
                 temp = table_FACS(table, populations)
                 if temp.empty:
@@ -293,4 +294,4 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #сч�
 
 if __name__ == '__main__':
     data = read_file('FACS Canto II')
-    compute(data[0], data[1], data[2], data[3], data[4], data[5])
+    #compute(data[0], data[1], data[2], data[3], data[4], data[5])
