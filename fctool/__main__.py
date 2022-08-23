@@ -12,6 +12,7 @@ import yaml
 def parse_yaml(yfile: Path) -> Dict:
     with open(yfile, 'r', encoding='utf8') as stream:
         config = yaml.load(stream, Loader=yaml.FullLoader)
+        return config
 
 
 if __name__ == '__main__':
@@ -45,4 +46,3 @@ if __name__ == '__main__':
     if not args.config_path.exists():
         raise ValueError(f"Путь до конфига '{args.config_path}' не существует. "
                          f"Поместите config.yaml в папку с данными либо укажите путь до конфига.")
-

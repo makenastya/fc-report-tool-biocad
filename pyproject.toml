@@ -5,7 +5,7 @@ description = ""
 authors = ["makeevaa <makeevaa@biocad.ru>"]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.8"
 pandas = "^1.4.3"
 openpyxl = "^3.0.10"
 #jinja2 = "^3.1.2"
