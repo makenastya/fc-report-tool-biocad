@@ -12,6 +12,9 @@ pd.set_option('display.max_colwidth', None)
 def table_FACS(data: pd.DataFrame, populations):
     temp = data.copy()
     columns = {}  # словарь соответсвий для замены названий колонок
+    actual = {}
+    actual['Experiment Name'] = 'Experiment Name'
+    actual['Record Date'] = 'Record Date'
     columns['Tube Name'] = 'Tube Name:'  # это я уже сама внутри программы делаю для удобства
     columns['Specimen Name'] = 'Sample ID:'
     names = []
@@ -19,16 +22,16 @@ def table_FACS(data: pd.DataFrame, populations):
         names.append(populations[i])
         key = i + ' #Events'
         columns[key] = populations[i]
+        actual[key] = populations[i]
         if key not in temp.columns:
-            print("Неверное название колонки")
-
             return (pd.DataFrame())
     temp = temp.loc[:, list(columns.keys())]
+    data = data.loc[:, list(actual.keys())]
     temp.rename(columns=columns, inplace=True)
     temp = remove_control(temp, 'Tube Name:', 'rep')
     for i in names:
         temp[i] = temp[i].astype('int')
-    return(temp)
+    return([temp, data])
 
 def table_FLEX(data, populations):
     temp = data.copy()
@@ -50,7 +53,7 @@ def table_FLEX(data, populations):
     temp = remove_control(temp, 'Tube Name:', 'rep')
     for i in names:
         temp[i] = temp[i].astype('int')
-    return(temp)
+    return([temp, data])
 
 def process_tables(cytometer, populations, test, testcv, testmin, min_events, points):
     #print('Первичные данные', data, sep = '\n')
@@ -59,29 +62,50 @@ def process_tables(cytometer, populations, test, testcv, testmin, min_events, po
     dirs = os.listdir(data_path)
     k = 0
     file_lot = {}
+    data = []
     for file in dirs:
         if file.endswith(".csv"):
             k += 1
             p = Path(data_path, file)
-            table = pd.read_csv(p, sep=',')
             if cytometer == 'FACS Canto II':
-                temp = table_FACS(table, populations)
-                if temp.empty:
-                    raise ValueError(f'Неверное название столбца:{file}')
+                table = pd.read_csv(p, sep=',')
+                if 'Specimen Name' not in table.columns:
+                    table = pd.read_csv(p, sep=';')
+                tpl = table_FACS(table, populations)
             else:
-                temp = table_FLEX(table, populations)
-                if temp.empty:
-                    raise ValueError(f'Неверное название столбца:{file}')
+                table = pd.read_csv(p, sep=';')
+                tpl = table_FLEX(table, populations)
+            temp = tpl[0]
+            table = tpl[1]
+            if temp.empty:
+                raise ValueError(f'Неверное название столбца:{file}')
+            s = set(temp['Sample ID:'])
+            for i in s:
+                if i not in file_lot:
+                    file_lot[i] = []
+                file_lot[i].append(file)
             if k == 1:
                 res = temp
             else:
-                if not pd.merge(res, temp, how = 'inner').empty:
-                    raise ValueError(f'Два одинаковых файла:{file}')
-                if not pd.merge(res, temp, on =['Sample ID:', 'Tube Name:'], how = 'inner').empty:
-                    raise ValueError(f'Два одинаковых образца:{file}')
                 res = pd.concat([res, temp])
+            empty = pd.DataFrame(columns=table.columns, data=[[None] * len(table.columns)])
+            table = pd.concat([table, empty])
+            print(table)
+            data.append(table)
+
+    pd.concat(data, ignore_index=True).to_excel('Первичные данные.xlsx', index=False)
+    msg = ''
+    for i in file_lot:
+        if len(file_lot[i]) > 1:
+            s = ''
+            for j in file_lot[i]:
+                s += '\n' + j
+            msg += f'Одинаковые образцы {i}: {s}' + '\n'
+
+    if msg != '':
+        raise ValueError(msg)
     print(k)
-    compute(res, testcv, testmin, min_events, points, test)
+    #compute(res, testcv, testmin, min_events, points, test)
 
 def biotable(temp, points): #таблица учета биообразцов, принимает исходную таблицу(без контроля и названия эксперимента) и кол-во точек забора
     s = []
@@ -186,7 +210,6 @@ def compute(temp, testcv, testmin, min_events, points, test): #запускае�
             True: 'color:red',
             False: ''
         })
-        #print(i, krit_data[i][0])
         krit_data[i][0].style.apply(lambda _: style_df, axis = None).to_excel(f'{i}.xlsx', engine='openpyxl', index = False)
 
 def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #считает процент дочерних клеток в родительских, принимает критерии lloq и применяет их
@@ -207,3 +230,6 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #сч�
         table.loc[int(lot_pd[0]), PD] = i[1][child].mean()
         res_krit.loc[int(lot_pd[0]), PD]  = check(i[1][child].mean(), krit[1], krit[2])
     return(table, res_krit)
+
+import tests.dsFACS as ds
+process_tables(ds.cytometer, ds.populations, ds.test, ds.testcv, ds.testmin, ds.min_events, ds.points)
