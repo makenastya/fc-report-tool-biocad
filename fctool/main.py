@@ -15,7 +15,7 @@ def table_FACS(data: pd.DataFrame, populations):
     actual = {}
     actual['Experiment Name'] = 'Experiment Name'
     actual['Record Date'] = 'Record Date'
-    columns['Tube Name'] = 'Tube Name:'  # это я уже сама внутри программы делаю для удобства
+    columns['Tube Name'] = 'Tube Name:'
     columns['Specimen Name'] = 'Sample ID:'
     names = []
     for i in populations:
@@ -23,8 +23,9 @@ def table_FACS(data: pd.DataFrame, populations):
         key = i + ' #Events'
         columns[key] = populations[i]
         actual[key] = populations[i]
-        if key not in temp.columns:
-            return (pd.DataFrame())
+    for i in columns:
+        if i not in temp.columns:
+            return ([pd.DataFrame(), data])
     temp = temp.loc[:, list(columns.keys())]
     data = data.loc[:, list(actual.keys())]
     temp.rename(columns=columns, inplace=True)
@@ -36,20 +37,20 @@ def table_FACS(data: pd.DataFrame, populations):
 def table_FLEX(data, populations):
     temp = data.copy()
     columns = {}  # словарь соответсвий для замены названий колонок
-    columns['Tube Name:'] = 'Tube Name:'  # это я уже сама внутри программы делаю для удобства
+    columns['Tube Name:'] = 'Tube Name:'
     columns['Sample ID:'] = 'Sample ID:'
     names = []
     for i in populations:
         names.append(populations[i])
         key = i + ' Events'
         columns[key] = populations[i]
-        if key not in temp.columns:
-            return(pd.DataFrame())
-    temp.columns = temp.iloc[1]
-    temp = temp.drop(labels=0, axis=0)  # таблица без названия эксперимента, все расчеты дальше с ней
-    temp = temp.drop(labels=1, axis=0)
+    for i in columns:
+        if i not in temp.columns:
+            return([pd.DataFrame(), data])
     temp = temp.loc[:, list(columns.keys())]
+    data = data.loc[:, list(columns.keys())]
     temp.rename(columns=columns, inplace=True)
+    data.rename(columns=columns, inplace=True)
     temp = remove_control(temp, 'Tube Name:', 'rep')
     for i in names:
         temp[i] = temp[i].astype('int')
@@ -68,13 +69,20 @@ def process_tables(cytometer, populations, test, testcv, testmin, min_events, po
             k += 1
             p = Path(data_path, file)
             if cytometer == 'FACS Canto II':
-                table = pd.read_csv(p, sep=',')
-                if 'Specimen Name' not in table.columns:
+                fl = pd.read_csv(p, sep = ',', nrows=0)
+                head = " ".join(fl.columns)
+                if ';' in head:
                     table = pd.read_csv(p, sep=';')
+                else:
+                    table = pd.read_csv(p, sep=',')
+                print(table)
                 tpl = table_FACS(table, populations)
             else:
-                table = pd.read_csv(p, sep=';')
+                table = pd.read_csv(p, sep=';', skiprows=2)
                 tpl = table_FLEX(table, populations)
+                name = pd.read_csv(p, sep = ';', nrows=0)
+                head = " ".join(name.columns)
+
             temp = tpl[0]
             table = tpl[1]
             if temp.empty:
@@ -88,12 +96,15 @@ def process_tables(cytometer, populations, test, testcv, testmin, min_events, po
                 res = temp
             else:
                 res = pd.concat([res, temp])
-            empty = pd.DataFrame(columns=table.columns, data=[[None] * len(table.columns)])
-            table = pd.concat([table, empty])
-            print(table)
+            if cytometer == 'FACS Canto II':
+                empty = pd.DataFrame(columns=table.columns, data=[[None] * len(table.columns)])
+                table = pd.concat([empty, table], axis=0)
+            else:
+                empty = pd.DataFrame(columns=table.columns, data=[[None] * len(table.columns)])
+                empty['Tube Name:'] = head
+                table = pd.concat([empty, table], axis=0)
             data.append(table)
-
-    pd.concat(data, ignore_index=True).to_excel('Первичные данные.xlsx', index=False)
+    primary= pd.concat(data, ignore_index=True)
     msg = ''
     for i in file_lot:
         if len(file_lot[i]) > 1:
@@ -104,8 +115,7 @@ def process_tables(cytometer, populations, test, testcv, testmin, min_events, po
 
     if msg != '':
         raise ValueError(msg)
-    print(k)
-    #compute(res, testcv, testmin, min_events, points, test)
+    compute(res, testcv, testmin, min_events, points, test,primary)
 
 def biotable(temp, points): #таблица учета биообразцов, принимает исходную таблицу(без контроля и названия эксперимента) и кол-во точек забора
     s = []
@@ -125,7 +135,7 @@ def comp_cv(df, child, parent): #принимает датафрейм от од
     data = df.copy()
     data[child] = data[child] / data[parent] * 100
     mean = data[child].mean()
-    sd = data[child].std() #несмещенная
+    sd = data[child].std()
     return(sd / mean * 100)
 
 def remove_control(df, column, rep):#убирает из таблицы строки с контролем
@@ -174,15 +184,15 @@ def krit(df : pd.DataFrame, testcv, min_events): #собирает таблиц�
         for j in testcv:
             cv = comp_cv(i[1], j, testcv[j][0])
             col = find_col(table, j, '%CV')
-            table.loc[(lot_pd[0], int(lot_pd[1])), col] = cv
-            res_krit.loc[(lot_pd[0], int(lot_pd[1])), col] = check(cv, testcv[j][1], testcv[j][2])
+            table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = cv
+            res_krit.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = check(cv, testcv[j][1], testcv[j][2])
         for j in min_events:
             col = find_col(table, j, 'min')
-            table.loc[(lot_pd[0], int(lot_pd[1])), col] = i[1][j].min()
-            res_krit.loc[(lot_pd[0], int(lot_pd[1])), col] = check(i[1][j].min(), 'min events', min_events[j])
+            table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = i[1][j].min()
+            res_krit.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = check(i[1][j].min(), 'min events', min_events[j])
     return(table, res_krit)
 
-def compute(temp, testcv, testmin, min_events, points, test): #запускает все функции подсчета таблиц и генерирует excel-файлы
+def compute(temp, testcv, testmin, min_events, points, test, primary): #запускает все функции подсчета таблиц и генерирует excel-файлы
     temp = temp.sort_values(by = 'Sample ID:')
     biodata = {}
     krit_data = {}
@@ -203,6 +213,7 @@ def compute(temp, testcv, testmin, min_events, points, test): #запускае�
     krit_data['Критерии пригодности'] = [df, df1]
     for i in biodata:
         biodata[i].to_excel(f'{i}.xlsx')
+    primary.to_excel('Первичные данные.xlsx', index=False)
     for i in krit_data:
         style_df = (
             krit_data[i][1] == 0
@@ -210,7 +221,10 @@ def compute(temp, testcv, testmin, min_events, points, test): #запускае�
             True: 'color:red',
             False: ''
         })
-        krit_data[i][0].style.apply(lambda _: style_df, axis = None).to_excel(f'{i}.xlsx', engine='openpyxl', index = False)
+        if i != 'Критерии пригодности':
+            krit_data[i][0].style.apply(lambda _: style_df, axis = None).to_excel(f'{i}.xlsx', engine='openpyxl')
+        else:
+            krit_data[i][0].style.apply(lambda _: style_df, axis=None).to_excel(f'{i}.xlsx', engine='openpyxl', index=False)
 
 def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #считает процент дочерних клеток в родительских, принимает критерии lloq и применяет их
     df = remove_control(df, 'Tube Name:', 'rep')
@@ -230,6 +244,3 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #сч�
         table.loc[int(lot_pd[0]), PD] = i[1][child].mean()
         res_krit.loc[int(lot_pd[0]), PD]  = check(i[1][child].mean(), krit[1], krit[2])
     return(table, res_krit)
-
-import tests.dsFACS as ds
-process_tables(ds.cytometer, ds.populations, ds.test, ds.testcv, ds.testmin, ds.min_events, ds.points)
