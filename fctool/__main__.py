@@ -3,9 +3,6 @@ python3 -m fctool запустит этот модуль
 """
 
 import argparse
-import datetime
-from datetime import datetime
-import os
 from pathlib import Path
 from typing import Dict
 import yaml
@@ -35,25 +32,27 @@ if __name__ == '__main__':
                         type=Path,
                         required=False,
                         default=None)
+    parser.add_argument("--round",
+                        help="Нужно ли округлять.",
+                        dest="round_key",
+                        type=bool,
+                        required=False,
+                        default=False
+                        )
     # это просто позиционный аргумент
     parser.add_argument("tables_dir",
                         help="Путь до папки, содержащей данные",
                         type=Path)
 
     args = parser.parse_args()
-
     if args.config_path is None:
         args.config_path = args.tables_dir / "config.yaml"
     if args.out_path is None:
-        args.out_path = Path(__file__).parent
-    current_time = datetime.now()
-    timestamp = current_time.strftime('%Y-%m-%d_%H-%M-%S')
-    file = f'Output_{timestamp}'
-    args.out_path = Path(args.out_path,file )
-    os.mkdir(args.out_path)
+        args.out_path = Path('.')
 
     args.config_path = args.config_path.absolute()
     args.tables_dir = args.tables_dir.absolute()
+    args.out_path = args.out_path.absolute()
 
     if not args.tables_dir.exists():
         raise ValueError(f"Путь до папки с данными '{args.tables_dir}' не существует")
@@ -69,4 +68,4 @@ if __name__ == '__main__':
     points = config['points']
     populations = config['populations']
     cytometer = config['cytometer']
-    process_tables(args.tables_dir, args.out_path, cytometer, populations, percent, cv, lloq, min_events, points)
+    process_tables(args.tables_dir, args.out_path, cytometer, populations, percent, cv, lloq, min_events, points, args.round_key)

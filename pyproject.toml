@@ -8,9 +8,9 @@ authors = ["makeevaa <makeevaa@biocad.ru>"]
 python = "^3.8"
 pandas = "^1.4.3"
 openpyxl = "^3.0.10"
-#jinja2 = "^3.1.2"
 Jinja2 = "^3.1.2"
 PyYAML = "^6.0"
+
 
 
 [tool.poetry.dev-dependencies]

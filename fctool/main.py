@@ -4,6 +4,9 @@ import pandas as pd
 import jinja2
 from pathlib import Path
 import os, sys
+import datetime
+from datetime import datetime
+
 
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
@@ -65,7 +68,7 @@ def table_FLEX(data, populations):
         temp[i] = temp[i].astype('int')
     return([temp, data])
 
-def process_tables(data_path, out_path, cytometer, populations, percent, cv, lloq, min_events, points):
+def process_tables(data_path, out_path, cytometer, populations, percent, cv, lloq, min_events, points, round_key):
     """Принимает данные из config.yaml, возвращает обработанные и склеенные таблицы.
     :param data_path: путь до папки с исходными данными
     :type data_path: Path
@@ -86,6 +89,7 @@ def process_tables(data_path, out_path, cytometer, populations, percent, cv, llo
     :param points: количество точек забора
     :type: int
     """
+
     dirs = os.listdir(data_path)
     k = 0
     file_lot = {}
@@ -137,18 +141,24 @@ def process_tables(data_path, out_path, cytometer, populations, percent, cv, llo
             for j in file_lot[i]:
                 s += '\n' + j
             msg += f'Одинаковые образцы {i}: {s}' + '\n'
-
     if msg != '':
         raise ValueError(msg)
+
+    current_time = datetime.now()
+    timestamp = current_time.strftime('%Y-%m-%d_%H-%M-%S')
+    file = f'Output_{timestamp}'
+    out_path = Path(out_path, file)
+    os.mkdir(out_path)
     p = Path(out_path, f'Первичные данные.xlsx')
     primary.to_excel(p, index=False)
-    p = Path(out_path, 'Результаты считывания.txt')
+    p = Path(out_path, 'log.txt')
     text = open(p, "w+")
     text.write(f'Количество прочитанных файлов: {k} \n')
     for file in dirs:
         if file.endswith(".csv"):
             text.write(f'{file} \n')
-    compute(out_path, res, cv, lloq, min_events, points, percent)
+    print(f'Количество прочитанных файлов: {k} \n')
+    compute(out_path, res, cv, lloq, min_events, points, percent, round_key)
 
 def biotable(temp, points):
     """Принимает исходную таблицу данных(без контроля, названия экспепримента и с нужными столбцами) и кол-во точек забора, возвращает таблицу учета биообразцов.
@@ -221,7 +231,7 @@ def check(number: int, oper: str, ref: int):
         else:
             return(1)
 
-def krit(df : pd.DataFrame, cv, min_events):
+def krit(df : pd.DataFrame, cv, min_events, round_key):
     """Принимает исходную таблицу и словари с критериями пригодности, собирает таблицу из всех критериев пригодности(cv и min events).
     :param df: таблица с данными
     :type df: pd.Dataframe
@@ -251,17 +261,32 @@ def krit(df : pd.DataFrame, cv, min_events):
         for j in cv:
             val = comp_cv(i[1], j, cv[j][0])
             col = find_col(table, j, '%CV')
-            table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = val
             if val != None:
+                if round_key:
+                    if val < 10:
+                        table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = round(val, 3)
+                    else:
+                        table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = round(val, 2)
+                else:
+                    table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = val
                 res_krit.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = check(val, cv[j][1], cv[j][2])
+            else:
+                table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = val
         for j in min_events:
             col = find_col(table, j, 'min')
-            table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = i[1][j].min()
+            if round_key:
+                if i[1][j].min() < 10:
+                    table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = round(i[1][j].min(), 3)
+                else:
+                    table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = round(i[1][j].min(), 2)
+            else:
+                table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = i[1][j].min()
             res_krit.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = check(i[1][j].min(), 'min events', min_events[j])
     return(table, res_krit)
 
-def compute(out_path, temp, cv, lloq, min_events, points, percent):
-    """Принимает обработанные входные данные из process_tables, запускает все функции подсчета таблиц и генерирует excel-файлы."""
+def compute(out_path, temp, cv, lloq, min_events, points, percent, round_key):
+    """Принимает обработанные входные данные из process_tables, запускает все функции подсчета таблиц и генерирует excel-файлы(см.описание process_tables)."""
+
     temp = temp.sort_values(by = 'Sample ID:')
     biodata = {}
     krit_data = {}
@@ -269,26 +294,23 @@ def compute(out_path, temp, cv, lloq, min_events, points, percent):
     biodata['Учет биообразцов'] = table
     for i in percent:
         if i in lloq:
-            table = comp_percentgb(temp, i, percent[i], lloq[i], points)
+            table = comp_percentgb(temp, i, percent[i], lloq[i], points, round_key)
         else:
-            table = comp_percentgb(temp, i, percent[i], [], points)
+            table = comp_percentgb(temp, i, percent[i], [], points, round_key)
         key = f'Mean % {i} in {percent[i]}'
         krit_data[key] = table
-    table = krit(temp, cv, min_events)
+    table = krit(temp, cv, min_events, round_key)
     df = table[0]
     df1 = table[1]
     df.sort_index(inplace=True)
     df1.sort_index(inplace=True)
     df = table[0].reset_index()
     df1 = table[1].reset_index()
-
     krit_data['Критерии пригодности'] = [df, df1]
     for i in biodata:
         styled = (biodata[i].style.applymap(lambda v: 'background-color: %s' % 'red' if v != '+' else ''))
         p = Path(out_path, f'{i}.xlsx')
         styled.to_excel(p, engine='openpyxl')
-
-        #biodata[i].style.apply(lambda _: style_df, axis = None).to_excel(p, engine='openpyxl')
     for i in krit_data:
         style_df = (
             krit_data[i][1] == 0
@@ -302,7 +324,8 @@ def compute(out_path, temp, cv, lloq, min_events, points, percent):
         else:
             krit_data[i][0].style.apply(lambda _: style_df, axis=None).to_excel(p, engine='openpyxl', index=False)
 
-def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points):
+    print(f'Файлы сохранены в {out_path}')
+def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points, round_key):
     """Принимает таблицу с исходными данными, критерий пригодности lloq, считает процент дочерних клеток в родительских, возвращает датафрейм с посчитанными процентами и датафрейм с результатом применения критерия.
     :param df: таблица с исходными даннымиэ
     :type df: pd.Dataframe
@@ -327,7 +350,14 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points):
         i[1][child] = i[1][child] / i[1][parent] * 100
         lot_pd = i[0].split('-')
         PD = 'PD-' + lot_pd[1]
-        table.loc[int(lot_pd[0]), PD] = i[1][child].mean()
+        if round_key:
+            if i[1][child].mean() != None:
+                if i[1][child].mean() < 10:
+                    table.loc[int(lot_pd[0]), PD] = round(i[1][child].mean(), 3)
+                else:
+                    table.loc[int(lot_pd[0]), PD] = round(i[1][child].mean(), 2)
+        else:
+            table.loc[int(lot_pd[0]), PD] = i[1][child].mean()
         if len(krit) > 0:
             res_krit.loc[int(lot_pd[0]), PD]  = check(i[1][child].mean(), krit[1], krit[2])
         else:
