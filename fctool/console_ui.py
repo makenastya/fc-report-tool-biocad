@@ -31,14 +31,14 @@ def run():
                         required=False,
                         default=None)
     parser.add_argument("--out",
-                        help="Путь до папки с обработанными данными"
-                             "По умолчанию сохраняет в папку out",
+                        help="Путь до папки с обработанными данными. "
+                             "По умолчанию сохраняет в папку Output_date_time в текущем расположении.",
                         dest="out_path",
                         type=Path,
                         required=False,
                         default=None)
     parser.add_argument("--round",
-                        help="Нужно ли округлять.",
+                        help="On - если нужно округление рассчитаных значений, иначе не указывать.",
                         dest="round_key",
                         type=bool,
                         required=False,
