@@ -10,10 +10,16 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.max_colwidth', None)
 
 def table_FACS(data: pd.DataFrame, populations):
+    """Принимает таблицу с исходными данными из config.yaml, возвращает обработанную таблицу с нужными столбцами и их названиями для прибора FACS Canto II.
+    :param data: таблица, прочитанная из входного вайла
+    :type data: pd.Dataframe
+    """
     temp = data.copy()
     columns = {}  # словарь соответсвий для замены названий колонок
     actual = {}
     actual['Experiment Name'] = 'Experiment Name'
+    actual['Specimen Name'] = 'Specimen Name'
+    actual['Tube Name'] = 'Tube Name'
     actual['Record Date'] = 'Record Date'
     columns['Tube Name'] = 'Tube Name:'
     columns['Specimen Name'] = 'Sample ID:'
@@ -35,6 +41,10 @@ def table_FACS(data: pd.DataFrame, populations):
     return([temp, data])
 
 def table_FLEX(data, populations):
+    """Принимает таблицу с исходными данными из config.yaml, возвращает обработанную таблицу с нужными столбцами и их названиями для прибора cytoFLEX.
+        :param data: таблица, прочитанная из входного вайла
+        :type data: pd.Dataframe
+    """
     temp = data.copy()
     columns = {}  # словарь соответсвий для замены названий колонок
     columns['Tube Name:'] = 'Tube Name:'
@@ -50,13 +60,32 @@ def table_FLEX(data, populations):
     temp = temp.loc[:, list(columns.keys())]
     data = data.loc[:, list(columns.keys())]
     temp.rename(columns=columns, inplace=True)
-    data.rename(columns=columns, inplace=True)
     temp = remove_control(temp, 'Tube Name:', 'rep')
     for i in names:
         temp[i] = temp[i].astype('int')
     return([temp, data])
 
-def process_tables(data_path, out_path, cytometer, populations, test, testcv, testmin, min_events, points):
+def process_tables(data_path, out_path, cytometer, populations, percent, cv, lloq, min_events, points):
+    """Принимает данные из config.yaml, возвращает обработанные и склеенные таблицы.
+    :param data_path: путь до папки с исходными данными
+    :type data_path: Path
+    :param out_path: путь до папки с обработанными данными
+    :type out_path: Path
+    :param cytometer: название прибора
+    :type cytometer: str
+    :param populations: словарь соответствий названий популяций в исходных данных и желаемых названий
+    :type populations: dict
+    :param percent: словарь, в каждой ячейке ключу соответствует популяция, относительно которой нужно считать процент
+    :type percent: dict
+    :param cv: словарь, в каждой ячейке ключу соответствует список из популяции(относительно которой считается cv), оператора, значения cv
+    :type cv: dict
+    :param lloq: словарь, в каждой ячейке ключу соответствует список из популяции(относительно которой считается процент), оператора, значения lloq
+    :type lloq: dict
+    :param min_events: минимальное количество событий(значение) для популяций(ключ)
+    :type min_events: dict
+    :param points: количество точек забора
+    :type: int
+    """
     dirs = os.listdir(data_path)
     k = 0
     file_lot = {}
@@ -72,7 +101,6 @@ def process_tables(data_path, out_path, cytometer, populations, test, testcv, te
                     table = pd.read_csv(p, sep=';')
                 else:
                     table = pd.read_csv(p, sep=',')
-                print(table)
                 tpl = table_FACS(table, populations)
             else:
                 table = pd.read_csv(p, sep=';', skiprows=2)
@@ -101,7 +129,7 @@ def process_tables(data_path, out_path, cytometer, populations, test, testcv, te
                 empty['Tube Name:'] = head
                 table = pd.concat([empty, table], axis=0)
             data.append(table)
-    primary= pd.concat(data, ignore_index=True)
+    primary = pd.concat(data, ignore_index=True)
     msg = ''
     for i in file_lot:
         if len(file_lot[i]) > 1:
@@ -112,9 +140,23 @@ def process_tables(data_path, out_path, cytometer, populations, test, testcv, te
 
     if msg != '':
         raise ValueError(msg)
-    compute(out_path, res, testcv, testmin, min_events, points, test,primary)
+    p = Path(out_path, f'Первичные данные.xlsx')
+    primary.to_excel(p, index=False)
+    p = Path(out_path, 'Результаты считывания.txt')
+    text = open(p, "w+")
+    text.write(f'Количество прочитанных файлов: {k} \n')
+    for file in dirs:
+        if file.endswith(".csv"):
+            text.write(f'{file} \n')
+    compute(out_path, res, cv, lloq, min_events, points, percent)
 
-def biotable(temp, points): #таблица учета биообразцов, принимает исходную таблицу(без контроля и названия эксперимента) и кол-во точек забора
+def biotable(temp, points):
+    """Принимает исходную таблицу данных(без контроля, названия экспепримента и с нужными столбцами) и кол-во точек забора, возвращает таблицу учета биообразцов.
+    :param temp: таблица данных (без контроля, названия экспепримента и с обработанными названиями столбцов)
+    :type temp: pd.Dataframe
+    :param points: количество точек забора
+    :type points:int
+    """
     s = []
     for i in range(1, points + 1):
         c = 'PD-' + str(i)
@@ -128,7 +170,15 @@ def biotable(temp, points): #таблица учета биообразцов, �
         table.loc[int(lot_pd[0]), PD] = '+'
     return(table)
 
-def comp_cv(df, child, parent): #принимает датафрейм от одного образца, названия столбцов для расчета cv, возвращает cv
+def comp_cv(df, child, parent):
+    """Принимает датафрейм от одного образца, названия столбцов для расчета cv, возвращает cv.
+    :param df: датафрейм с одним образцом
+    :type df: pd.Dataframe
+    :param child: название популяции, для которой считается cv
+    :type child: str
+    :param parent: название популяции, относительно которой считается cv
+    :type parent: str
+    """
     data = df.copy()
     data[child] = data[child] / data[parent] * 100
     mean = data[child].mean()
@@ -137,14 +187,24 @@ def comp_cv(df, child, parent): #принимает датафрейм от од
         return(None)
     return(sd / mean * 100)
 
-def remove_control(df, column, rep):#убирает из таблицы строки с контролем
+def remove_control(df, column, rep):
+    """Принимает датафрейм, возвращает датафрейм без строк с контролем"""
     df = df.loc[df[column].str.contains(rep)]
     return(df)
-def find_col(df, name, fl):#возвращает столбец в таблице критериев пригодности, принимает таблицу крит.приг., название популяции и критерия
+def find_col(df, name, fl):
+    """Принимает таблицу критериев пригодности, название популяции и критерия, возвращает соответствующий столбец в таблице критериев пригодности.
+    :param df: таблица с критериями пригодности
+    :type df: pd.Dataframe
+    :param name: Название популяции
+    :type name: str
+    :param fl: Название критерия в таблице критериев пригодности(%CV или min)
+    :type fl: str
+    """
     for i in df.columns:
         if (name in i) and (fl in i):
             return(i)
-def check(number: int, oper: str, ref: int):#принимает значение(cv либо events), оператор, возвращает результат сравнения
+def check(number: int, oper: str, ref: int):
+    """Принимает значение(cv либо events), оператор, возвращает результат сравнения."""
     if oper == 'no more than':
         if number > ref:
             return(0)
@@ -161,15 +221,23 @@ def check(number: int, oper: str, ref: int):#принимает значение
         else:
             return(1)
 
-def krit(df : pd.DataFrame, testcv, min_events): #собирает таблицу из всех критериев пригодности(cv и min events), принимает исходную таблицу и словари с критериями
+def krit(df : pd.DataFrame, cv, min_events):
+    """Принимает исходную таблицу и словари с критериями пригодности, собирает таблицу из всех критериев пригодности(cv и min events).
+    :param df: таблица с данными
+    :type df: pd.Dataframe
+    :param cv: Словарь для проверки критерия пригодности CV
+    :type cv: dict
+    :param min_events: Словарь для проверки критерия пригодности - минимальное количество событий
+    :type min_events: dict
+    """
     s = []
     s.append('ЛОТ')
     s.append('Точка PD')
     for i in min_events:
         c = 'min ' + i
         s.append(c)
-    for i in testcv:
-        c = '%CV ' + i + ' in ' + testcv[i][0]
+    for i in cv:
+        c = '%CV ' + i + ' in ' + cv[i][0]
         s.append(c)
     table = pd.DataFrame(columns = s)
     res_krit = pd.DataFrame(columns = s)
@@ -180,29 +248,33 @@ def krit(df : pd.DataFrame, testcv, min_events): #собирает таблиц�
     for i in list_group:
         lot_pd = i[0].split('-')
         PD = 'PD-' + lot_pd[1]
-        for j in testcv:
-            cv = comp_cv(i[1], j, testcv[j][0])
+        for j in cv:
+            val = comp_cv(i[1], j, cv[j][0])
             col = find_col(table, j, '%CV')
-            table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = cv
-            if cv != None:
-                res_krit.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = check(cv, testcv[j][1], testcv[j][2])
+            table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = val
+            if val != None:
+                res_krit.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = check(val, cv[j][1], cv[j][2])
         for j in min_events:
             col = find_col(table, j, 'min')
             table.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = i[1][j].min()
             res_krit.loc[(int(lot_pd[0]), int(lot_pd[1])), col] = check(i[1][j].min(), 'min events', min_events[j])
     return(table, res_krit)
 
-def compute(out_path, temp, testcv, testmin, min_events, points, test, primary): #запускает все функции подсчета таблиц и генерирует excel-файлы
+def compute(out_path, temp, cv, lloq, min_events, points, percent):
+    """Принимает обработанные входные данные из process_tables, запускает все функции подсчета таблиц и генерирует excel-файлы."""
     temp = temp.sort_values(by = 'Sample ID:')
     biodata = {}
     krit_data = {}
     table = biotable(temp, points)
     biodata['Учет биообразцов'] = table
-    for i in test:
-        table = comp_percentgb(temp, i, test[i], testmin[i], points)
-        key = f'Mean % {i} in {test[i]}'
+    for i in percent:
+        if i in lloq:
+            table = comp_percentgb(temp, i, percent[i], lloq[i], points)
+        else:
+            table = comp_percentgb(temp, i, percent[i], [], points)
+        key = f'Mean % {i} in {percent[i]}'
         krit_data[key] = table
-    table = krit(temp, testcv, min_events)
+    table = krit(temp, cv, min_events)
     df = table[0]
     df1 = table[1]
     df.sort_index(inplace=True)
@@ -212,10 +284,11 @@ def compute(out_path, temp, testcv, testmin, min_events, points, test, primary):
 
     krit_data['Критерии пригодности'] = [df, df1]
     for i in biodata:
+        styled = (biodata[i].style.applymap(lambda v: 'background-color: %s' % 'red' if v != '+' else ''))
         p = Path(out_path, f'{i}.xlsx')
-        biodata[i].to_excel(p)
-    p = Path(out_path, f'Первичные данные.xlsx')
-    primary.to_excel(p, index=False)
+        styled.to_excel(p, engine='openpyxl')
+
+        #biodata[i].style.apply(lambda _: style_df, axis = None).to_excel(p, engine='openpyxl')
     for i in krit_data:
         style_df = (
             krit_data[i][1] == 0
@@ -229,7 +302,17 @@ def compute(out_path, temp, testcv, testmin, min_events, points, test, primary):
         else:
             krit_data[i][0].style.apply(lambda _: style_df, axis=None).to_excel(p, engine='openpyxl', index=False)
 
-def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #считает процент дочерних клеток в родительских, принимает критерии lloq и применяет их
+def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points):
+    """Принимает таблицу с исходными данными, критерий пригодности lloq, считает процент дочерних клеток в родительских, возвращает датафрейм с посчитанными процентами и датафрейм с результатом применения критерия.
+    :param df: таблица с исходными даннымиэ
+    :type df: pd.Dataframe
+    :param child: Популяция, для которой расчитывается процентное содержание
+    :type child: str
+    :param parent: Популяция, относительно которой расчитывается процентное содержание
+    :type parent: str
+    :param krit: Список с популяцией parent, оператором сравнения и значением lloq, пустой, если для данной популяции нет lloq
+    :type krit: list
+    """
     df = remove_control(df, 'Tube Name:', 'rep')
     group = df.groupby('Sample ID:')
     list_group = list(group)
@@ -245,5 +328,8 @@ def comp_percentgb(df : pd.DataFrame, child, parent, krit: list, points): #сч�
         lot_pd = i[0].split('-')
         PD = 'PD-' + lot_pd[1]
         table.loc[int(lot_pd[0]), PD] = i[1][child].mean()
-        res_krit.loc[int(lot_pd[0]), PD]  = check(i[1][child].mean(), krit[1], krit[2])
+        if len(krit) > 0:
+            res_krit.loc[int(lot_pd[0]), PD]  = check(i[1][child].mean(), krit[1], krit[2])
+        else:
+            res_krit.loc[int(lot_pd[0]), PD] = 1
     return(table, res_krit)
