@@ -1,0 +1,48 @@
+---
+cytometer: cytoFLEX
+populations:
+    1-4 Lymph: Lymph
+    1-3 B-cells: B-cells
+    1-5 Plasm 1: Plasm
+    1-4 Bmem: B-mem
+    naive: Naive
+cv:
+    B-cells:
+        - Lymph
+        - no more than 
+        - 20
+    Plasm:
+        - Lymph
+        - no more than
+        - 35
+    B-mem:
+        - Lymph
+        - no more than
+        - 20
+    Naive:
+        - Lymph
+        - no more than
+        - 20
+percent:
+    Naive: Lymph
+    B-cells: Lymph
+    Plasm: Lymph
+    B-mem: Lymph
+lloq:
+    B-cells:
+        - Lymph
+        - not less than
+        - 0.124 
+    Plasm:
+        - Lymph
+        - not less than
+        - 0.025
+    B-mem:
+        - Lymph
+        - not less than
+        - 0.059
+
+min_events:
+    Lymph: 25000
+points: 7
+...

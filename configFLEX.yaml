@@ -1,0 +1,58 @@
+---
+cytometer: cytoFLEX
+#название прибора
+populations:
+#соответствие названий 
+#популяций в данных с прибора 
+#и желаемых названий 
+#в отчетных таблицах
+    1-4 Lymph: Lymph
+    1-3 B-cells: B-cells
+    1-5 Plasm 1: Plasm
+    1-4 Bmem: B-mem
+    naive: Naive
+cv:
+#Для расчета критерия CV
+    B-cells:#для какой популяции считается CV
+        - Lymph #относительно какой популяции считается CV
+        - no more than #оператор сравнения, 
+        #поддерживается только "no more than", "not less than"
+        - 20 #значение, с которым сравнивается CV
+    Plasm:
+        - Lymph
+        - no more than
+        - 35
+    B-mem:
+        - Lymph
+        - no more than
+        - 20
+    Naive:
+        - Lymph
+        - no more than
+        - 20
+percent:
+#соответствие популяций, для которых считается %
+    Naive: Lymph #mean # Naive in Lymph
+    B-cells: Lymph
+    Plasm: Lymph
+    B-mem: Lymph
+lloq:
+#Для проверки lloq
+    B-cells:#для какой популяции считается %
+        - Lymph#относительно какой популяции считается процент
+        - not less than #оператор сравнения
+        - 0.124 #значение lloq
+    Plasm:
+        - Lymph
+        - not less than
+        - 0.025
+    B-mem:
+        - Lymph
+        - not less than
+        - 0.059
+
+min_events:
+#проверяет на минимальное количество событий
+    Lymph: 25000 #название популяции и значение, с которым надо сравнить
+points: 7 #количество точек забора
+...

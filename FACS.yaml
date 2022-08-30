@@ -1,0 +1,98 @@
+---
+cytometer: FACS Canto II
+populations:
+    singlets: Lymph
+    T: T-lymph
+    CTL: CTL
+    Ki67+CTL: Ki67+CTL
+    CD69+CTL: CD69+CTL
+    Th: Th
+    Ki67+Th: Ki67+Th
+    CD69+Th: CD69+Th
+    NK: NK
+    Ki67+NK: Ki67+NK
+    CD69+NK: CD69+NK
+    CD56hiNK: CD56hiNK
+    Ki67+CD56hiNK: Ki67+CD56hiNK
+    CD69+CD56hiNK: CD69+CD56hiNK
+
+cv:
+    T-lymph:
+        - Lymph
+        - no more than
+        - 20
+    Th:
+        - T-lymph
+        - no more than
+        - 20
+    CTL:
+        - T-lymph
+        - no more than
+        - 20
+    NK:
+        - Lymph
+        - no more than
+        - 20
+    CD56hiNK:
+        - NK
+        - no more than
+        - 35
+    Ki67+Th:
+        - NK
+        - no more than
+        - 35
+    Ki67+Th:
+        - CTL
+        - no more than
+        - 35
+    Ki67+NK:
+        - NK
+        - no more than
+        - 35
+    Ki67+CD56hiNK:
+        - CD56hiNK
+        - no more than
+        - 35
+    CD69+Th:
+        - Th
+        - no more than
+        - 35
+    CD69+Th:
+        - CTL
+        - no more than
+        - 35
+    CD69+NK:
+        - NK
+        - no more than
+        - 35
+    CD69+CD56hiNK:
+        - CD56hiNK
+        - no more than
+        - 35
+
+percent:
+    T-lymph: Lymph
+    Th: T-lymph
+    CTL: T-lymph
+    NK: Lymph
+    CD56hiNK: NK
+    Ki67+Th: Th
+    Ki67+Th: CTL
+    Ki67+NK: NK
+    Ki67+CD56hiNK: CD56hiNK
+    CD69+Th: Th
+    CD69+Th: CTL
+    CD69+NK: NK
+    CD69+CD56hiNK: CD56hiNK
+
+lloq:
+    T-lymph: 
+        - Lymph
+        - not less than
+        - 0
+
+min_events:
+    NK: 1000
+
+points: 11
+...
