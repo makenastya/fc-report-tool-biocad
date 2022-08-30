@@ -12,8 +12,8 @@ pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_colwidth', None)
 
-def table_FACS(data: pd.DataFrame, populations):
-    """Принимает таблицу с исходными данными из config.yaml, возвращает обработанную таблицу с нужными столбцами и их названиями для прибора FACS Canto II.
+def table_FACS(data: pd.DataFrame, populations, file):
+    """Принимает необработанную таблицу из входных данных, возвращает обработанную таблицу с нужными столбцами и их названиями для прибора FACS Canto II.
     :param data: таблица, прочитанная из входного вайла
     :type data: pd.Dataframe
     """
@@ -33,7 +33,7 @@ def table_FACS(data: pd.DataFrame, populations):
         actual[key] = populations[i]
     for i in columns:
         if i not in temp.columns:
-            return ([pd.DataFrame(), data])
+            raise ValueError(f'Недостаточно данных/неправильное название столбца:{i} in {file}')
     temp = temp.loc[:, list(columns.keys())]
     data = data.loc[:, list(actual.keys())]
     temp.rename(columns=columns, inplace=True)
@@ -42,8 +42,8 @@ def table_FACS(data: pd.DataFrame, populations):
         temp[i] = temp[i].astype('int')
     return([temp, data])
 
-def table_FLEX(data, populations):
-    """Принимает таблицу с исходными данными из config.yaml, возвращает обработанную таблицу с нужными столбцами и их названиями для прибора cytoFLEX.
+def table_FLEX(data, populations, file):
+    """Принимает необработанную таблицу из входных данных, возвращает обработанную таблицу с нужными столбцами и их названиями для прибора cytoFLEX.
         :param data: таблица, прочитанная из входного вайла
         :type data: pd.Dataframe
     """
@@ -58,7 +58,7 @@ def table_FLEX(data, populations):
         columns[key] = populations[i]
     for i in columns:
         if i not in temp.columns:
-            return([pd.DataFrame(), data])
+            raise ValueError(f'Недостаточно данных/неправильное название столбца:{i} in {file}')
     temp = temp.loc[:, list(columns.keys())]
     data = data.loc[:, list(columns.keys())]
     temp.rename(columns=columns, inplace=True)
@@ -104,17 +104,15 @@ def process_tables(data_path, out_path, cytometer, populations, percent, cv, llo
                     table = pd.read_csv(p, sep=';')
                 else:
                     table = pd.read_csv(p, sep=',')
-                tpl = table_FACS(table, populations)
+                tpl = table_FACS(table, populations, file)
             else:
                 table = pd.read_csv(p, sep=';', skiprows=2)
-                tpl = table_FLEX(table, populations)
+                tpl = table_FLEX(table, populations, file)
                 name = pd.read_csv(p, sep = ';', nrows=0)
                 head = " ".join(name.columns)
 
             temp = tpl[0]
             table = tpl[1]
-            if temp.empty:
-                raise ValueError(f'Недостаточно данных/неправильное название столбца:{file}')
             s = set(temp['Sample ID:'])
             for i in s:
                 if i not in file_lot:
@@ -156,6 +154,7 @@ def process_tables(data_path, out_path, cytometer, populations, percent, cv, llo
     for file in dirs:
         if file.endswith(".csv"):
             text.write(f'{file} \n')
+    text.close()
     print(f'Количество прочитанных файлов: {k} \n')
     compute(out_path, res, cv, lloq, min_events, points, percent, round_key)
 
