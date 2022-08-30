@@ -2,7 +2,7 @@
 Запуск инструмента из консоли.
 
 - Для запуска как модуль (python -m fctool ./data_dir) см fctool.__main__.py
-- Для запуска командой (python -m fctool ./data_dir) см pyproject.toml
+- Для запуска командой (fctool ./data_dir) см pyproject.toml
   секцию [tool.poetry.scripts]
 """
 
