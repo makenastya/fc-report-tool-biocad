@@ -23,7 +23,6 @@ def table_FACS(data: pd.DataFrame, populations):
     actual['Experiment Name'] = 'Experiment Name'
     actual['Specimen Name'] = 'Specimen Name'
     actual['Tube Name'] = 'Tube Name'
-    actual['Record Date'] = 'Record Date'
     columns['Tube Name'] = 'Tube Name:'
     columns['Specimen Name'] = 'Sample ID:'
     names = []
@@ -69,7 +68,7 @@ def table_FLEX(data, populations):
     return([temp, data])
 
 def process_tables(data_path, out_path, cytometer, populations, percent, cv, lloq, min_events, points, round_key):
-    """Принимает данные из config.yaml, возвращает обработанные и склеенные таблицы.
+    """Принимает настройки из config.yaml, считывает данные из папки, возвращает обработанные и склеенные таблицы.
     :param data_path: путь до папки с исходными данными
     :type data_path: Path
     :param out_path: путь до папки с обработанными данными
@@ -115,7 +114,7 @@ def process_tables(data_path, out_path, cytometer, populations, percent, cv, llo
             temp = tpl[0]
             table = tpl[1]
             if temp.empty:
-                raise ValueError(f'Неверное название столбца:{file}')
+                raise ValueError(f'Недостаточно данных/неправильное название столбца:{file}')
             s = set(temp['Sample ID:'])
             for i in s:
                 if i not in file_lot:
